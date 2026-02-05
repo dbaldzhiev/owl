@@ -1,0 +1,12 @@
+C:\Users\db\owl\src\Owl.Core\bin\Debug\net7.0\Owl.Core.deps.json
+C:\Users\db\owl\src\Owl.Core\bin\Debug\net7.0\Owl.Core.dll
+C:\Users\db\owl\src\Owl.Core\bin\Debug\net7.0\Owl.Core.pdb
+C:\Users\db\owl\src\Owl.Core\obj\Debug\net7.0\Owl.Core.csproj.AssemblyReference.cache
+C:\Users\db\owl\src\Owl.Core\obj\Debug\net7.0\Owl.Core.GeneratedMSBuildEditorConfig.editorconfig
+C:\Users\db\owl\src\Owl.Core\obj\Debug\net7.0\Owl.Core.AssemblyInfoInputs.cache
+C:\Users\db\owl\src\Owl.Core\obj\Debug\net7.0\Owl.Core.AssemblyInfo.cs
+C:\Users\db\owl\src\Owl.Core\obj\Debug\net7.0\Owl.Core.csproj.CoreCompileInputs.cache
+C:\Users\db\owl\src\Owl.Core\obj\Debug\net7.0\Owl.Core.dll
+C:\Users\db\owl\src\Owl.Core\obj\Debug\net7.0\refint\Owl.Core.dll
+C:\Users\db\owl\src\Owl.Core\obj\Debug\net7.0\Owl.Core.pdb
+C:\Users\db\owl\src\Owl.Core\obj\Debug\net7.0\ref\Owl.Core.dll

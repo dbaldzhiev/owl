@@ -1,0 +1,213 @@
+# OWL — Technical Requirements Document (TRD)
+
+Target Platform: Rhino 8 / Grasshopper  
+Language: C# (.NET 7)  
+API: RhinoCommon  
+Domain: Auditoriums, Cinemas, Grandstands, Tribune Renovation
+
+---
+
+## 0. Core Design Principle
+Everything in Owl is derived from **three primary architectural primitives**:
+
+1. **Tribune Lines**
+   - The controlling geometric logic of a tribune
+   - Can be straight or curved
+   - Define the horizontal progression of rows
+
+2. **Stairs**
+   - Vertical movement logic
+   - Governed by constant riser height (especially critical for renovation)
+   - Include risers, treads, and landings
+
+3. **Seats with Occupants**
+   - Seats are not empty points
+   - Each seat has an occupant model (eye + head)
+   - Sightlines are evaluated against people, not abstract points
+
+All components must ultimately operate on or derive from these primitives.
+
+---
+
+## 1. Terminology (Canonical)
+- **Tribune Line**: A curve (Line, Arc, or NURBS) representing row direction.
+- **Row Station**: A position along a tribune line at a given depth increment.
+- **Seat Reference Point**: Point on floor used to place seat.
+- **Eye Point**: 3D point representing seated viewer eye location.
+- **Head Point**: Clearance point above seat reference (eye + offset).
+- **Riser**: Vertical stair element (must be constant height unless explicitly overridden).
+- **Tread**: Horizontal walking surface between risers.
+
+---
+
+## 2. Geometry Primitives (Non-Negotiable)
+
+### 2.1 Tribune Lines
+Tribune lines are the backbone of all geometry.
+
+Requirements:
+- Accept straight or curved curves.
+- Must have a consistent forward direction.
+- Used to:
+  - Generate rows
+  - Place seats
+  - Position stairs
+  - Evaluate sightlines
+
+Core components:
+- `OWL_TribuneLine`
+- `OWL_TribuneFromCurve`
+- `OWL_TribuneFromExistingGeometry` (renovation)
+
+Outputs:
+- Clean, parameterized curves
+- Station frames (Plane per row)
+- Direction vectors
+
+---
+
+### 2.2 Stairs (Constant Riser Logic)
+Stairs are first-class geometry, not an afterthought.
+
+Rules:
+- Riser height must be constant or integer multiples thereof.
+- Landings must be detected or explicitly inserted.
+- Stair geometry must align with tribune lines.
+
+Core components:
+- `OWL_StairGenerator`
+- `OWL_StairFromProfile`
+- `OWL_RenoFitStairs`
+
+Outputs:
+- Riser curves
+- Tread curves
+- Landing curves
+- Validation warnings (non-compliant heights)
+
+---
+
+### 2.3 Seats with People
+Seats always include an occupant model.
+
+Occupant model (v1):
+- Eye point
+- Head clearance point
+- Optional shoulder width (future)
+
+Seat geometry is secondary; **occupant geometry is primary** for analysis.
+
+Core components:
+- `OWL_SeatRow`
+- `OWL_SeatBlock`
+- `OWL_SeatOccupant`
+
+Outputs:
+- Seat insertion planes
+- Eye points
+- Head points
+- Optional proxy human geometry (capsule or simplified mesh)
+
+---
+
+## 3. Sightline Engine (Core Intelligence)
+
+Sightlines are always computed:
+- From **eye points**
+- Over **head points of occupants in front**
+- To **screen or focal geometry**
+
+Rules:
+- No sightline may intersect:
+  - A head point + C-value clearance
+  - A stair edge
+  - An architectural obstruction
+
+Core components:
+- `OWL_SightlineTier`
+- `OWL_SightlineRays`
+- `OWL_SightlineReport`
+
+Outputs:
+- Pass/fail rays
+- Clearance values
+- Warning messages per row or per seat
+
+---
+
+## 4. Renovation Workflow (Mandatory Feature)
+
+Renovation is a primary use case, not optional.
+
+### 4.1 Existing Tribune Extraction
+Component: `OWL_TribuneExtract`
+
+Inputs:
+- Existing Brep / Mesh / Section Curve
+- Section plane or direction
+
+Outputs:
+- Clean section profile
+- Detected treads, risers, landings
+- Measured riser heights
+- Anomaly report
+
+---
+
+### 4.2 Tribune Re-Fit (Constant Riser Enforcement)
+Component: `OWL_RenoFitTribune`
+
+Purpose:
+Fit a new tribune geometry over an existing one while:
+- Changing row depth and seat width
+- Keeping riser height constant
+- Respecting start/end constraints
+
+Inputs:
+- Existing profile
+- Tribune line
+- Target row depth
+- Constant riser height
+- Constraint mode (lock front, lock top, free)
+- Fit mode (best fit / no cut / no fill)
+
+Rules:
+- All vertical changes must be integer multiples of riser height.
+- Resulting profile must be monotonic.
+- Deviations from existing geometry must be reported.
+
+Outputs:
+- New tribune profile
+- New stair geometry
+- Delta curves (cut/fill)
+- Violations list
+
+---
+
+## 5. Cinema-Specific Geometry
+- `OWL_ScreenGeometry` (flat or curved)
+- `OWL_ProjectionCone`
+- `OWL_ViewingAngles`
+
+Standards awareness:
+- SMPTE horizontal viewing angles
+- Vertical comfort limits
+
+Violations generate warnings, not hard errors.
+
+---
+
+## 6. Performance & Data Handling
+- Preview geometry: Mesh or Curve only.
+- Bakeable geometry: explicit output.
+- DataTrees preserved unless user opts out.
+- Heavy analysis supports parallel execution.
+
+---
+
+## 7. Definition of Done (Component-Level)
+A component is complete when:
+- It operates on tribune lines, stairs, or seats-with-people
+- It produces deterministic results
+- It reports violations clearly
+- It does not crash Grasshopper

@@ -1,0 +1,16 @@
+{
+  "version": 2,
+  "dgSpecHash": "ZB3fDmBltV0=",
+  "success": true,
+  "projectFilePath": "c:\\Users\\db\\owl\\src\\Owl.Grasshopper\\Owl.Grasshopper.csproj",
+  "expectedPackageFiles": [
+    "C:\\Users\\db\\.nuget\\packages\\grasshopper\\8.27.26019.16021\\grasshopper.8.27.26019.16021.nupkg.sha512",
+    "C:\\Users\\db\\.nuget\\packages\\microsoft.win32.systemevents\\7.0.0\\microsoft.win32.systemevents.7.0.0.nupkg.sha512",
+    "C:\\Users\\db\\.nuget\\packages\\rhinocommon\\8.27.26019.16021\\rhinocommon.8.27.26019.16021.nupkg.sha512",
+    "C:\\Users\\db\\.nuget\\packages\\system.drawing.common\\7.0.0\\system.drawing.common.7.0.0.nupkg.sha512",
+    "C:\\Users\\db\\.nuget\\packages\\microsoft.netcore.app.ref\\7.0.20\\microsoft.netcore.app.ref.7.0.20.nupkg.sha512",
+    "C:\\Users\\db\\.nuget\\packages\\microsoft.windowsdesktop.app.ref\\7.0.20\\microsoft.windowsdesktop.app.ref.7.0.20.nupkg.sha512",
+    "C:\\Users\\db\\.nuget\\packages\\microsoft.aspnetcore.app.ref\\7.0.20\\microsoft.aspnetcore.app.ref.7.0.20.nupkg.sha512"
+  ],
+  "logs": []
+}

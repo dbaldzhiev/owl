@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net7.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <EnableDynamicLoading>true</EnableDynamicLoading>
+  </PropertyGroup>
+
+  <Target Name="PostBuild" AfterTargets="PostBuildEvent">
+    <Copy SourceFiles="$(OutputPath)\$(AssemblyName).dll" DestinationFiles="$(OutputPath)\$(AssemblyName).gha" />
+  </Target>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Owl.Core\Owl.Core.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Grasshopper" Version="8.*" />
+  </ItemGroup>
+
+</Project>

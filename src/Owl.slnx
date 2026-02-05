@@ -1,0 +1,4 @@
+<Solution>
+  <Project Path="Owl.Core/Owl.Core.csproj" />
+  <Project Path="Owl.Grasshopper/Owl.Grasshopper.csproj" />
+</Solution>
