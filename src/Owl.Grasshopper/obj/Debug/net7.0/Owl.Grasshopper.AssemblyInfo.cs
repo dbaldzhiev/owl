@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("Owl.Grasshopper")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+f18ca5994df5e99b06dc8ad5433e13b5a071bb3e")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+231285c598911b6a1aa37e60f6c499d50cee3c76")]
 [assembly: System.Reflection.AssemblyProductAttribute("Owl.Grasshopper")]
 [assembly: System.Reflection.AssemblyTitleAttribute("Owl.Grasshopper")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]

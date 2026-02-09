@@ -55,13 +55,14 @@ namespace Owl.Core.Solvers
             };
 
             // Capture Row 0 Data
-            // Front of Row 0 (Railing Intersection)
-            Point3d r0Start = new Point3d(currX, 0, currZ);
+            // Front of Row 0 (Railing Interior Intersection)
+            double railW_0 = _railings.RailWidth;
+            Point3d r0Start = new Point3d(currX + railW_0, 0, currZ); // Offset by RailWidth
             Point3d r0End = new Point3d(currX + row0Width, 0, currZ);
             
             rowPoints.Add(r0Start);
             rrInt.Add(r0Start);
-            tribRows.Add(new Line(r0Start, r0End));
+            tribRows.Add(new Line(new Point3d(currX, 0, currZ), r0End)); // Physical row starts at currX
 
             currX += getRowWidth(0);
             tribPts.Add(new Point3d(currX, 0, currZ));
@@ -90,17 +91,18 @@ namespace Owl.Core.Solvers
                 tribPts.Add(new Point3d(currX, 0, currZ));
 
                 // Capture Row Data (Front of Row r)
-                Point3d rStart = new Point3d(currX, 0, currZ);
+                double railW = _railings.RailWidth;
+                Point3d rStart = new Point3d(currX + railW, 0, currZ); // Offset by RailWidth
                 Point3d rEnd = new Point3d(currX + thisRowWidth, 0, currZ);
                 
                 rowPoints.Add(rStart);
                 rrInt.Add(rStart);
-                tribRows.Add(new Line(rStart, rEnd));
+                tribRows.Add(new Line(new Point3d(currX, 0, currZ), rEnd)); // Physical row starts at currX
 
                 // --- Generate Railing at this Riser ---
                 double rBottomZ = currZ - rowRise;
                 double rTopZ = currZ + _railings.RailHeight;
-                double railW = _railings.RailWidth;
+                // railW is already defined above
 
                 Point3d p0 = new Point3d(currX, 0, rBottomZ);
                 Point3d p1 = new Point3d(currX, 0, rTopZ);

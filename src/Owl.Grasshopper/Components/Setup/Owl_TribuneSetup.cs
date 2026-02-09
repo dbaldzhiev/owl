@@ -20,7 +20,6 @@ namespace Owl.Grasshopper.Components.Setup
             pManager.AddNumberParameter("RowWidths", "RowWs", "List of row widths (modules)", GH_ParamAccess.list, new List<double> { 0.8 });
             pManager.AddIntegerParameter("Elevations", "Elev", "List of steps per row", GH_ParamAccess.list, new List<int> { 2 });
             pManager.AddBooleanParameter("StairInsets", "Insets", "Shift stairs by railing width (per row)", GH_ParamAccess.list, new List<bool> { false });
-            pManager.AddNumberParameter("RiserHeight", "Riser", "Height of a single step", GH_ParamAccess.item, 0.15);
         }
 
         protected override void RegisterOutputParams(GH_Component.GH_OutputParamManager pManager)
@@ -34,15 +33,13 @@ namespace Owl.Grasshopper.Components.Setup
             List<double> rowWidths = new List<double>();
             List<int> elev = new List<int>();
             List<bool> insets = new List<bool>();
-            double riserHeight = 0.15;
 
             if (!DA.GetData(0, ref rows)) return;
             if (!DA.GetDataList(1, rowWidths)) return;
             if (!DA.GetDataList(2, elev)) return;
             DA.GetDataList(3, insets); // Optional
-            if (!DA.GetData(4, ref riserHeight)) return;
             
-            var setup = new TribuneSetup(rows, rowWidths, elev, insets, riserHeight);
+            var setup = new TribuneSetup(rows, rowWidths, elev, insets);
             DA.SetData(0, setup);
         }
 
