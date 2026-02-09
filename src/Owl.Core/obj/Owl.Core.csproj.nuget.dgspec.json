@@ -1,25 +1,27 @@
 {
   "format": 1,
   "restore": {
-    "c:\\Users\\db\\owl\\src\\Owl.Core\\Owl.Core.csproj": {}
+    "C:\\Users\\Dimitar\\owl\\src\\Owl.Core\\Owl.Core.csproj": {}
   },
   "projects": {
-    "c:\\Users\\db\\owl\\src\\Owl.Core\\Owl.Core.csproj": {
+    "C:\\Users\\Dimitar\\owl\\src\\Owl.Core\\Owl.Core.csproj": {
       "version": "1.0.0",
       "restore": {
-        "projectUniqueName": "c:\\Users\\db\\owl\\src\\Owl.Core\\Owl.Core.csproj",
+        "projectUniqueName": "C:\\Users\\Dimitar\\owl\\src\\Owl.Core\\Owl.Core.csproj",
         "projectName": "Owl.Core",
-        "projectPath": "c:\\Users\\db\\owl\\src\\Owl.Core\\Owl.Core.csproj",
-        "packagesPath": "C:\\Users\\db\\.nuget\\packages\\",
-        "outputPath": "c:\\Users\\db\\owl\\src\\Owl.Core\\obj\\",
+        "projectPath": "C:\\Users\\Dimitar\\owl\\src\\Owl.Core\\Owl.Core.csproj",
+        "packagesPath": "C:\\Users\\Dimitar\\.nuget\\packages\\",
+        "outputPath": "C:\\Users\\Dimitar\\owl\\src\\Owl.Core\\obj\\",
         "projectStyle": "PackageReference",
         "configFilePaths": [
-          "C:\\Users\\db\\AppData\\Roaming\\NuGet\\NuGet.Config"
+          "C:\\Users\\Dimitar\\AppData\\Roaming\\NuGet\\NuGet.Config",
+          "C:\\Program Files (x86)\\NuGet\\Config\\Microsoft.VisualStudio.Offline.config"
         ],
         "originalTargetFrameworks": [
           "net7.0"
         ],
         "sources": {
+          "C:\\Program Files (x86)\\Microsoft SDKs\\NuGetPackages\\": {},
           "https://api.nuget.org/v3/index.json": {}
         },
         "frameworks": {

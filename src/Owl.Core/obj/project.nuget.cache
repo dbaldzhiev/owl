@@ -1,15 +1,15 @@
 {
   "version": 2,
-  "dgSpecHash": "tGR7lDgHZX0=",
+  "dgSpecHash": "r9D3BYXrz7k=",
   "success": true,
-  "projectFilePath": "c:\\Users\\db\\owl\\src\\Owl.Core\\Owl.Core.csproj",
+  "projectFilePath": "C:\\Users\\Dimitar\\owl\\src\\Owl.Core\\Owl.Core.csproj",
   "expectedPackageFiles": [
-    "C:\\Users\\db\\.nuget\\packages\\microsoft.win32.systemevents\\7.0.0\\microsoft.win32.systemevents.7.0.0.nupkg.sha512",
-    "C:\\Users\\db\\.nuget\\packages\\rhinocommon\\8.27.26019.16021\\rhinocommon.8.27.26019.16021.nupkg.sha512",
-    "C:\\Users\\db\\.nuget\\packages\\system.drawing.common\\7.0.0\\system.drawing.common.7.0.0.nupkg.sha512",
-    "C:\\Users\\db\\.nuget\\packages\\microsoft.netcore.app.ref\\7.0.20\\microsoft.netcore.app.ref.7.0.20.nupkg.sha512",
-    "C:\\Users\\db\\.nuget\\packages\\microsoft.windowsdesktop.app.ref\\7.0.20\\microsoft.windowsdesktop.app.ref.7.0.20.nupkg.sha512",
-    "C:\\Users\\db\\.nuget\\packages\\microsoft.aspnetcore.app.ref\\7.0.20\\microsoft.aspnetcore.app.ref.7.0.20.nupkg.sha512"
+    "C:\\Users\\Dimitar\\.nuget\\packages\\microsoft.win32.systemevents\\7.0.0\\microsoft.win32.systemevents.7.0.0.nupkg.sha512",
+    "C:\\Users\\Dimitar\\.nuget\\packages\\rhinocommon\\8.27.26019.16021\\rhinocommon.8.27.26019.16021.nupkg.sha512",
+    "C:\\Users\\Dimitar\\.nuget\\packages\\system.drawing.common\\7.0.0\\system.drawing.common.7.0.0.nupkg.sha512",
+    "C:\\Users\\Dimitar\\.nuget\\packages\\microsoft.netcore.app.ref\\7.0.20\\microsoft.netcore.app.ref.7.0.20.nupkg.sha512",
+    "C:\\Users\\Dimitar\\.nuget\\packages\\microsoft.windowsdesktop.app.ref\\7.0.20\\microsoft.windowsdesktop.app.ref.7.0.20.nupkg.sha512",
+    "C:\\Users\\Dimitar\\.nuget\\packages\\microsoft.aspnetcore.app.ref\\7.0.20\\microsoft.aspnetcore.app.ref.7.0.20.nupkg.sha512"
   ],
   "logs": []
 }
