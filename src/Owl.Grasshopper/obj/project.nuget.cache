@@ -1,8 +1,8 @@
 {
   "version": 2,
-  "dgSpecHash": "XNrqlYcUjKo=",
+  "dgSpecHash": "PBZfrv1d4WY=",
   "success": true,
-  "projectFilePath": "C:\\Users\\Dimitar\\owl\\src\\Owl.Grasshopper\\Owl.Grasshopper.csproj",
+  "projectFilePath": "c:\\Users\\Dimitar\\owl\\src\\Owl.Grasshopper\\Owl.Grasshopper.csproj",
   "expectedPackageFiles": [
     "C:\\Users\\Dimitar\\.nuget\\packages\\grasshopper\\8.27.26019.16021\\grasshopper.8.27.26019.16021.nupkg.sha512",
     "C:\\Users\\Dimitar\\.nuget\\packages\\microsoft.win32.systemevents\\7.0.0\\microsoft.win32.systemevents.7.0.0.nupkg.sha512",

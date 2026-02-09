@@ -29,6 +29,7 @@ namespace Owl.Grasshopper.Components.Solvers
             pManager.AddCurveParameter("StairsProfile", "SProf", "Stairs Profile Curve", GH_ParamAccess.item);
             pManager.AddCurveParameter("RailingProfiles", "RProf", "Railing Profile Curves", GH_ParamAccess.list);
             pManager.AddNumberParameter("Gaps", "Gaps", "Free gap calculation per row", GH_ParamAccess.list);
+            pManager.AddGenericParameter("SerializedTribune", "STrib", "Serialized Tribune Output", GH_ParamAccess.item);
         }
 
         protected override void SolveInstance(IGH_DataAccess DA)
@@ -46,13 +47,15 @@ namespace Owl.Grasshopper.Components.Solvers
             Curve tProfile, sProfile;
             List<Curve> rProfiles;
             List<double> gaps;
+            SerializedTribune serializedTrib;
 
-            solver.Solve(out tProfile, out sProfile, out rProfiles, out gaps);
+            solver.Solve(out tProfile, out sProfile, out rProfiles, out gaps, out serializedTrib);
 
             DA.SetData(0, tProfile);
             DA.SetData(1, sProfile);
             DA.SetDataList(2, rProfiles);
             DA.SetDataList(3, gaps);
+            DA.SetData(4, serializedTrib);
         }
 
         protected override System.Drawing.Bitmap Icon => null;

@@ -263,11 +263,11 @@
   "project": {
     "version": "1.0.0",
     "restore": {
-      "projectUniqueName": "C:\\Users\\Dimitar\\owl\\src\\Owl.Grasshopper\\Owl.Grasshopper.csproj",
+      "projectUniqueName": "c:\\Users\\Dimitar\\owl\\src\\Owl.Grasshopper\\Owl.Grasshopper.csproj",
       "projectName": "Owl.Grasshopper",
-      "projectPath": "C:\\Users\\Dimitar\\owl\\src\\Owl.Grasshopper\\Owl.Grasshopper.csproj",
+      "projectPath": "c:\\Users\\Dimitar\\owl\\src\\Owl.Grasshopper\\Owl.Grasshopper.csproj",
       "packagesPath": "C:\\Users\\Dimitar\\.nuget\\packages\\",
-      "outputPath": "C:\\Users\\Dimitar\\owl\\src\\Owl.Grasshopper\\obj\\",
+      "outputPath": "c:\\Users\\Dimitar\\owl\\src\\Owl.Grasshopper\\obj\\",
       "projectStyle": "PackageReference",
       "configFilePaths": [
         "C:\\Users\\Dimitar\\AppData\\Roaming\\NuGet\\NuGet.Config",
@@ -284,8 +284,8 @@
         "net7.0": {
           "targetAlias": "net7.0",
           "projectReferences": {
-            "C:\\Users\\Dimitar\\owl\\src\\Owl.Core\\Owl.Core.csproj": {
-              "projectPath": "C:\\Users\\Dimitar\\owl\\src\\Owl.Core\\Owl.Core.csproj"
+            "c:\\Users\\Dimitar\\owl\\src\\Owl.Core\\Owl.Core.csproj": {
+              "projectPath": "c:\\Users\\Dimitar\\owl\\src\\Owl.Core\\Owl.Core.csproj"
             }
           }
         }

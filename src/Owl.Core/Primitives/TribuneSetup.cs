@@ -8,13 +8,20 @@ namespace Owl.Core.Primitives
         public List<double> RowWidths { get; }
         public List<int> ElevCounts { get; }
         public List<bool> StairInsets { get; }
+        public double RiserHeight { get; }
 
-        public TribuneSetup(int rows, List<double> rowWidths, List<int> elevCounts, List<bool> stairInsets)
+        public TribuneSetup(int rows, List<double> rowWidths, List<int> elevCounts, List<bool> stairInsets, double riserHeight)
         {
             Rows = rows;
             RowWidths = rowWidths ?? new List<double>();
             ElevCounts = elevCounts ?? new List<int>();
             StairInsets = stairInsets ?? new List<bool>();
+            RiserHeight = riserHeight;
+        }
+
+        public TribuneSetup Duplicate()
+        {
+             return new TribuneSetup(Rows, new List<double>(RowWidths), new List<int>(ElevCounts), new List<bool>(StairInsets), RiserHeight);
         }
     }
 }
