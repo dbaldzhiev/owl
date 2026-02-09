@@ -19,9 +19,12 @@ namespace Owl.Grasshopper.Components.Solvers
         protected override void RegisterInputParams(GH_Component.GH_InputParamManager pManager)
         {
             pManager.AddGenericParameter("AudienceSetup", "Audience", "Audience Setup Object", GH_ParamAccess.item);
+            pManager.AddGenericParameter("SerializedTribune", "STrib", "Serialized Tribune Output", GH_ParamAccess.item);
             pManager.AddGenericParameter("ProjectorSetup", "Projector", "Projector Setup Object", GH_ParamAccess.item);
             pManager.AddGenericParameter("ScreenSetup", "Screen", "Screen Setup Object", GH_ParamAccess.item);
-            pManager.AddGenericParameter("SerializedTribune", "STrib", "Serialized Tribune Output", GH_ParamAccess.item);
+
+            pManager[2].Optional = true;
+            pManager[3].Optional = true;
         }
 
         protected override void RegisterOutputParams(GH_Component.GH_OutputParamManager pManager)
@@ -39,10 +42,10 @@ namespace Owl.Grasshopper.Components.Solvers
             ScreenSetup screen = null;
 
             if (!DA.GetData(0, ref audience) || audience == null) return;
-            if (!DA.GetData(1, ref projector) || projector == null) return;
-            if (!DA.GetData(2, ref screen) || screen == null) return;
-            if (!DA.GetData(3, ref strib) || strib == null) return;
-
+            if (!DA.GetData(1, ref strib) || strib == null) return;
+            DA.GetData(2, ref projector);
+            DA.GetData(3, ref screen);
+            
             List<Line> sightlines;
             Brep cone;
             List<Curve> chairs;

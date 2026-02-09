@@ -21,18 +21,23 @@ namespace Owl.Core.Solvers
             projectorCone = null;
             placedChairs = new List<Curve>();
 
-            if (audience == null || serializedTribune == null || screen == null || projector == null)
+            if (audience == null || serializedTribune == null)
                 return;
 
             // 1. Determine Screen Extents (Top/Bottom)
-            Curve screenCrv = screen.ScreenCurve;
-            if (screenCrv == null) return;
+            Point3d screenBottom = Point3d.Unset;
+            Point3d screenTop = Point3d.Unset;
+            bool hasScreen = false;
 
-            Point3d ptA = screenCrv.PointAtStart;
-            Point3d ptB = screenCrv.PointAtEnd;
-            
-            Point3d screenBottom = (ptA.Z < ptB.Z) ? ptA : ptB;
-            Point3d screenTop = (ptA.Z > ptB.Z) ? ptA : ptB;
+            if (screen != null && screen.ScreenCurve != null)
+            {
+                Curve screenCrv = screen.ScreenCurve;
+                Point3d ptA = screenCrv.PointAtStart;
+                Point3d ptB = screenCrv.PointAtEnd;
+                screenBottom = (ptA.Z < ptB.Z) ? ptA : ptB;
+                screenTop = (ptA.Z > ptB.Z) ? ptA : ptB;
+                hasScreen = true;
+            }
 
             // 2. Generate Eye Points & Chairs
             if (serializedTribune.RowPoints != null)
@@ -51,7 +56,10 @@ namespace Owl.Core.Solvers
                 {
                     // Eye Point
                     Point3d eye = rowPoint + eyeOffset;
-                    sightlines.Add(new Line(eye, screenBottom));
+                    if (hasScreen)
+                    {
+                        sightlines.Add(new Line(eye, screenBottom));
+                    }
 
                     // Place Chairs
                     if (audience.Chairs != null)
@@ -75,20 +83,23 @@ namespace Owl.Core.Solvers
             }
 
             // 3. Generate Projector Cone
-            var conePts = new List<Point3d>
+            if (hasScreen && projector != null)
             {
-                projector.Location,
-                screenTop,
-                screenBottom,
-                projector.Location // Close loop
-            };
-            
-            var polyline = new Polyline(conePts);
-            if (polyline.IsValid)
-            {
-                var brep = Brep.CreatePlanarBreps(polyline.ToNurbsCurve(), 0.001);
-                if (brep != null && brep.Length > 0)
-                    projectorCone = brep[0];
+                var conePts = new List<Point3d>
+                {
+                    projector.Location,
+                    screenTop,
+                    screenBottom,
+                    projector.Location // Close loop
+                };
+                
+                var polyline = new Polyline(conePts);
+                if (polyline.IsValid)
+                {
+                    var brep = Brep.CreatePlanarBreps(polyline.ToNurbsCurve(), 0.001);
+                    if (brep != null && brep.Length > 0)
+                        projectorCone = brep[0];
+                }
             }
         }
     }
