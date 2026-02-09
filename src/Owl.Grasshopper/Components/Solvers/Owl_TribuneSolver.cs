@@ -70,7 +70,19 @@ namespace Owl.Grasshopper.Components.Solvers
             DA.SetData(6, strib);
         }
 
-        protected override System.Drawing.Bitmap Icon => null;
+        protected override System.Drawing.Bitmap Icon
+        {
+            get
+            {
+                var assembly = typeof(Owl_TribuneSolver).Assembly;
+                var resourceName = "Owl.Grasshopper.Icons.Owl_TribuneSolver_24.png";
+                using (var stream = assembly.GetManifestResourceStream(resourceName))
+                {
+                    if (stream == null) return null;
+                    return new System.Drawing.Bitmap(stream);
+                }
+            }
+        }
         public override Guid ComponentGuid => new Guid("44444444-4444-4444-4444-444444444444");
     }
 }

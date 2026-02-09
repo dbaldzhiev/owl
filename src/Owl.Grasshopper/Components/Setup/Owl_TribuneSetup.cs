@@ -43,7 +43,19 @@ namespace Owl.Grasshopper.Components.Setup
             DA.SetData(0, setup);
         }
 
-        protected override System.Drawing.Bitmap Icon => null;
+        protected override System.Drawing.Bitmap Icon
+        {
+            get
+            {
+                var assembly = typeof(Owl_TribuneSetup).Assembly;
+                var resourceName = "Owl.Grasshopper.Icons.Owl_TribuneSetup_24.png";
+                using (var stream = assembly.GetManifestResourceStream(resourceName))
+                {
+                    if (stream == null) return null;
+                    return new System.Drawing.Bitmap(stream);
+                }
+            }
+        }
         public override Guid ComponentGuid => new Guid("11111111-1111-1111-1111-111111111111");
     }
 }

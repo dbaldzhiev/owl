@@ -54,7 +54,19 @@ namespace Owl.Grasshopper.Components.Solvers
             DA.SetDataList(2, chairs);
         }
 
-        protected override System.Drawing.Bitmap Icon => null;
+        protected override System.Drawing.Bitmap Icon
+        {
+            get
+            {
+                var assembly = typeof(Owl_Analysis).Assembly;
+                var resourceName = "Owl.Grasshopper.Icons.Owl_Analysis_24.png";
+                using (var stream = assembly.GetManifestResourceStream(resourceName))
+                {
+                    if (stream == null) return null;
+                    return new System.Drawing.Bitmap(stream);
+                }
+            }
+        }
         public override Guid ComponentGuid => new Guid("8E12C163-5678-8901-2345-67890123EFAB");
     }
 }
