@@ -1,0 +1,39 @@
+# Professional Icon Prompts for Owl Grasshopper Components
+
+## General Style Guidelines
+- **Minimalistic & Flat**: Use clean, bold lines and simple geometric shapes.
+- **Color Palette**: 
+  - Primary: Black (#000000)
+  - Secondary: Orange (#FF9900)
+  - Accent/Background: White (#FFFFFF)
+- **High Contrast**: Ensure shapes are distinct and legible at 24x24 pixels.
+- **Background**: Solid White.
+- **File Format**: PNG (24x24 or 48x48 recommended).
+
+---
+
+## Component-Specific Prompts
+
+### 1. Screen Setup (Owl_ScreenSetup)
+**Prompt**: A minimalistic icon of a wide cinema screen or a flat rectangular projection surface. Use bold black borders with an orange accent on the screen surface. White background. Professional flat vector style.
+
+### 2. Projector Setup (Owl_ProjectorSetup)
+**Prompt**: A minimalistic icon of a digital projector device. Show a simple side profile of the device casting an orange light cone. Black and white device with orange light. Professional flat vector style.
+
+### 3. Audience Setup (Owl_AudienceSetup)
+**Prompt**: A minimalistic icon representing an audience. Show a simplified silhouette of a seated person or a small group of three simplified head-and-shoulder silhouettes. Orange accents on the silhouettes. Black lines. Professional flat vector style.
+
+### 4. Railing Setup (Owl_RailingSetup)
+**Prompt**: A minimalistic icon of a safety railing. Show two vertical posts connected by a horizontal handrail. Bold black lines with orange highlights on the handrail. Professional flat vector style.
+
+### 5. Stair Setup (Owl_StairSetup)
+**Prompt**: A minimalistic icon of physical stairs. Show a profile view of 3-4 steps (stepped line). Bold black lines with an orange highlight on the tread surface. Professional flat vector style.
+
+### 6. Tribune Setup (Owl_TribuneSetup)
+**Prompt**: A minimalistic icon of a seating tribune profile. Show a tiered, stepped structure representing many rows. Bold black steps with orange highlights on the vertical riser surfaces. Professional flat vector style.
+
+### 7. Tribune Solver (Owl_TribuneSolver)
+**Prompt**: A minimalistic icon for a solver. Show the 'Tribune Setup' stepped profile combined with a small gear or a calculation checkmark symbol in the corner. Black structure with orange gear. Professional flat vector style.
+
+### 8. Analysis (Owl_Analysis)
+**Prompt**: A minimalistic icon of an eye (sightline analysis). Show a simple eye silhouette with a single orange dashed line or ray emitting from it. Black eye, orange ray. Professional flat vector style.
