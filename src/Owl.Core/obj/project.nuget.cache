@@ -1,8 +1,8 @@
 {
   "version": 2,
-  "dgSpecHash": "j8XnyBf0wbs=",
+  "dgSpecHash": "r9D3BYXrz7k=",
   "success": true,
-  "projectFilePath": "c:\\Users\\Dimitar\\owl\\src\\Owl.Core\\Owl.Core.csproj",
+  "projectFilePath": "C:\\Users\\Dimitar\\owl\\src\\Owl.Core\\Owl.Core.csproj",
   "expectedPackageFiles": [
     "C:\\Users\\Dimitar\\.nuget\\packages\\microsoft.win32.systemevents\\7.0.0\\microsoft.win32.systemevents.7.0.0.nupkg.sha512",
     "C:\\Users\\Dimitar\\.nuget\\packages\\rhinocommon\\8.27.26019.16021\\rhinocommon.8.27.26019.16021.nupkg.sha512",

@@ -4,14 +4,14 @@
     "c:\\Users\\Dimitar\\owl\\src\\Owl.Grasshopper\\Owl.Grasshopper.csproj": {}
   },
   "projects": {
-    "c:\\Users\\Dimitar\\owl\\src\\Owl.Core\\Owl.Core.csproj": {
+    "C:\\Users\\Dimitar\\owl\\src\\Owl.Core\\Owl.Core.csproj": {
       "version": "1.0.0",
       "restore": {
-        "projectUniqueName": "c:\\Users\\Dimitar\\owl\\src\\Owl.Core\\Owl.Core.csproj",
+        "projectUniqueName": "C:\\Users\\Dimitar\\owl\\src\\Owl.Core\\Owl.Core.csproj",
         "projectName": "Owl.Core",
-        "projectPath": "c:\\Users\\Dimitar\\owl\\src\\Owl.Core\\Owl.Core.csproj",
+        "projectPath": "C:\\Users\\Dimitar\\owl\\src\\Owl.Core\\Owl.Core.csproj",
         "packagesPath": "C:\\Users\\Dimitar\\.nuget\\packages\\",
-        "outputPath": "c:\\Users\\Dimitar\\owl\\src\\Owl.Core\\obj\\",
+        "outputPath": "C:\\Users\\Dimitar\\owl\\src\\Owl.Core\\obj\\",
         "projectStyle": "PackageReference",
         "configFilePaths": [
           "C:\\Users\\Dimitar\\AppData\\Roaming\\NuGet\\NuGet.Config",
@@ -109,8 +109,8 @@
           "net7.0": {
             "targetAlias": "net7.0",
             "projectReferences": {
-              "c:\\Users\\Dimitar\\owl\\src\\Owl.Core\\Owl.Core.csproj": {
-                "projectPath": "c:\\Users\\Dimitar\\owl\\src\\Owl.Core\\Owl.Core.csproj"
+              "C:\\Users\\Dimitar\\owl\\src\\Owl.Core\\Owl.Core.csproj": {
+                "projectPath": "C:\\Users\\Dimitar\\owl\\src\\Owl.Core\\Owl.Core.csproj"
               }
             }
           }

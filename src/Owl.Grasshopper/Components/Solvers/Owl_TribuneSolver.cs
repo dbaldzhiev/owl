@@ -25,37 +25,43 @@ namespace Owl.Grasshopper.Components.Solvers
 
         protected override void RegisterOutputParams(GH_Component.GH_OutputParamManager pManager)
         {
-            pManager.AddCurveParameter("TribuneProfile", "TProf", "Tribune Profile Curve", GH_ParamAccess.item);
-            pManager.AddCurveParameter("StairsProfile", "SProf", "Stairs Profile Curve", GH_ParamAccess.item);
-            pManager.AddCurveParameter("RailingProfiles", "RProf", "Railing Profile Curves", GH_ParamAccess.list);
-            pManager.AddNumberParameter("Gaps", "Gaps", "Free gap calculation per row", GH_ParamAccess.list);
-            pManager.AddGenericParameter("SerializedTribune", "STrib", "Serialized Tribune Output", GH_ParamAccess.item);
+            pManager.AddCurveParameter("TribuneProfile", "Profile", "Profile of the tribune", GH_ParamAccess.item);
+            pManager.AddCurveParameter("StairsProfile", "Stairs", "Profile of the stairs", GH_ParamAccess.item);
+            pManager.AddCurveParameter("RailingProfiles", "Railings", "Profiles of the railings", GH_ParamAccess.list);
+            pManager.AddNumberParameter("Gaps", "Gaps", "Gap distances", GH_ParamAccess.list);
+            pManager.AddGenericParameter("SerializedTribune", "STrib", "Serialized Tribune Data", GH_ParamAccess.item);
+            pManager.AddLineParameter("TribRows", "Rows", "Tribune Row Lines", GH_ParamAccess.list);
+            pManager.AddPointParameter("RRint", "RRint", "Row-Railing Intersection Points", GH_ParamAccess.list);
         }
 
         protected override void SolveInstance(IGH_DataAccess DA)
         {
-            TribuneSetup tSetup = null;
-            StairSetup sSetup = null;
-            RailingSetup rSetup = null;
+            TribuneSetup tribune = null;
+            StairSetup stairs = null;
+            RailingSetup railings = null;
 
-            if (!DA.GetData(0, ref tSetup) || tSetup == null) return;
-            if (!DA.GetData(1, ref sSetup) || sSetup == null) return;
-            if (!DA.GetData(2, ref rSetup) || rSetup == null) return;
+            if (!DA.GetData(0, ref tribune) || tribune == null) return;
+            if (!DA.GetData(1, ref stairs) || stairs == null) return;
+            if (!DA.GetData(2, ref railings) || railings == null) return;
 
-            var solver = new TribuneSolver(tSetup, sSetup, rSetup);
-            
-            Curve tProfile, sProfile;
-            List<Curve> rProfiles;
+            TribuneSolver solver = new TribuneSolver(tribune, stairs, railings);
+            Curve tripP;
+            Curve stairsP;
+            List<Curve> railsP;
             List<double> gaps;
-            SerializedTribune serializedTrib;
+            SerializedTribune strib;
+            List<Line> tribRows;
+            List<Point3d> rrInt;
 
-            solver.Solve(out tProfile, out sProfile, out rProfiles, out gaps, out serializedTrib);
+            solver.Solve(out tripP, out stairsP, out railsP, out gaps, out strib, out tribRows, out rrInt);
 
-            DA.SetData(0, tProfile);
-            DA.SetData(1, sProfile);
-            DA.SetDataList(2, rProfiles);
+            DA.SetData(0, tripP);
+            DA.SetData(1, stairsP);
+            DA.SetDataList(2, railsP);
             DA.SetDataList(3, gaps);
-            DA.SetData(4, serializedTrib);
+            DA.SetData(4, strib);
+            DA.SetDataList(5, tribRows);
+            DA.SetDataList(6, rrInt);
         }
 
         protected override System.Drawing.Bitmap Icon => null;

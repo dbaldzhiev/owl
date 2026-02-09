@@ -284,8 +284,8 @@
         "net7.0": {
           "targetAlias": "net7.0",
           "projectReferences": {
-            "c:\\Users\\Dimitar\\owl\\src\\Owl.Core\\Owl.Core.csproj": {
-              "projectPath": "c:\\Users\\Dimitar\\owl\\src\\Owl.Core\\Owl.Core.csproj"
+            "C:\\Users\\Dimitar\\owl\\src\\Owl.Core\\Owl.Core.csproj": {
+              "projectPath": "C:\\Users\\Dimitar\\owl\\src\\Owl.Core\\Owl.Core.csproj"
             }
           }
         }

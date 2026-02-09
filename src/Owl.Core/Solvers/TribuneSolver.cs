@@ -18,12 +18,14 @@ namespace Owl.Core.Solvers
             _railings = railings ?? throw new ArgumentNullException(nameof(railings));
         }
 
-        public void Solve(out Curve tribuneProfile, out Curve stairsProfile, out List<Curve> railingProfiles, out List<double> gaps, out SerializedTribune serializedTribune)
+        public void Solve(out Curve tribuneProfile, out Curve stairsProfile, out List<Curve> railingProfiles, out List<double> gaps, out SerializedTribune serializedTribune, out List<Line> tribRows, out List<Point3d> rrInt)
         {
             tribuneProfile = null;
             stairsProfile = null;
             railingProfiles = new List<Curve>();
             gaps = new List<double>();
+            tribRows = new List<Line>();
+            rrInt = new List<Point3d>();
             
             var rowPoints = new List<Point3d>();
 
@@ -52,32 +54,21 @@ namespace Owl.Core.Solvers
                 return _tribune.RowWidths[i % _tribune.RowWidths.Count];
             };
 
-            // Capture Row 0 Point (Back of the flat area)
-            rowPoints.Add(new Point3d(currX + row0Width, 0, currZ));
+            // Capture Row 0 Data
+            // Front of Row 0 (Railing Intersection)
+            Point3d r0Start = new Point3d(currX, 0, currZ);
+            Point3d r0End = new Point3d(currX + row0Width, 0, currZ);
+            
+            rowPoints.Add(r0Start);
+            rrInt.Add(r0Start);
+            tribRows.Add(new Line(r0Start, r0End));
 
             currX += getRowWidth(0);
             tribPts.Add(new Point3d(currX, 0, currZ));
 
             // Elevated Rows
-            for (int r = 1; r < _tribune.Rows; r++) // Loop to Rows-1? 
+            for (int r = 1; r < _tribune.Rows; r++) 
             {
-                // Logic check:
-                // _tribune.Rows is total rows.
-                // Row 0 is ground.
-                // Rows 1..N-1 are elevated.
-                // If Rows=10. r goes 1..9.
-                
-                // Original code: for (int r = 1; r <= _tribune.Rows; r++)
-                // Wait, if Rows=10, we have 10 rows total?
-                // Or "Rows" means elevated rows?
-                // Setup default is 10.
-                // "Number of elevated rows" description says so.
-                // So Total Rows = 1 (Ground) + N (Elevated)?
-                // Or Total Rows = N (including ground)?
-                
-                // Let's assume input "Rows" is the TOTAL count of rows the user expects.
-                // Loop r=1 to < Rows.
-
                 int idx = r - 1;
                 int count = 1;
                 
@@ -98,8 +89,13 @@ namespace Owl.Core.Solvers
                 currZ += rowRise;
                 tribPts.Add(new Point3d(currX, 0, currZ));
 
-                // Capture Row Point (Back of flat area for Row r)
-                rowPoints.Add(new Point3d(currX + thisRowWidth, 0, currZ));
+                // Capture Row Data (Front of Row r)
+                Point3d rStart = new Point3d(currX, 0, currZ);
+                Point3d rEnd = new Point3d(currX + thisRowWidth, 0, currZ);
+                
+                rowPoints.Add(rStart);
+                rrInt.Add(rStart);
+                tribRows.Add(new Line(rStart, rEnd));
 
                 // --- Generate Railing at this Riser ---
                 double rBottomZ = currZ - rowRise;
