@@ -15,8 +15,8 @@ namespace Owl.Grasshopper.Components.Setup
 
         protected override void RegisterInputParams(GH_Component.GH_InputParamManager pManager)
         {
-            pManager.AddNumberParameter("RailHeight", "RailH", "Height of railing", GH_ParamAccess.item, 1.0);
-            pManager.AddNumberParameter("RailWidth", "RailW", "Width/Thickness of railing", GH_ParamAccess.item, 0.05);
+            pManager.AddNumberParameter("RailHeight", "RailH", "Height of railing", GH_ParamAccess.item, 65);
+            pManager.AddNumberParameter("RailWidth", "RailW", "Width/Thickness of railing", GH_ParamAccess.item, 15);
         }
 
         protected override void RegisterOutputParams(GH_Component.GH_OutputParamManager pManager)

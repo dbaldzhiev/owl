@@ -40,6 +40,13 @@ namespace Owl.Core.Solvers
                 // Vector from Chair Origin to Eye
                 Vector3d eyeOffset = audience.EyeLocation - audience.Origin;
 
+                Transform mirrorXform = Transform.Identity;
+                if (serializedTribune.Flip)
+                {
+                    eyeOffset.X = -eyeOffset.X;
+                    mirrorXform = Transform.Mirror(new Plane(audience.Origin, Vector3d.XAxis, Vector3d.ZAxis));
+                }
+
                 foreach (var rowPoint in serializedTribune.RowPoints)
                 {
                     // Eye Point
@@ -50,13 +57,17 @@ namespace Owl.Core.Solvers
                     if (audience.Chairs != null)
                     {
                         Vector3d move = rowPoint - audience.Origin;
-                        var xform = Transform.Translation(move);
+                        var moveXform = Transform.Translation(move);
                         
                         foreach (var chairCrv in audience.Chairs)
                         {
                             if (chairCrv == null) continue;
                             var dup = chairCrv.DuplicateCurve();
-                            dup.Transform(xform);
+                            if (serializedTribune.Flip)
+                            {
+                                dup.Transform(mirrorXform);
+                            }
+                            dup.Transform(moveXform);
                             placedChairs.Add(dup);
                         }
                     }

@@ -17,9 +17,11 @@ namespace Owl.Grasshopper.Components.Setup
 
         protected override void RegisterInputParams(GH_Component.GH_InputParamManager pManager)
         {
-            pManager.AddPointParameter("EyeLocation", "Eye", "Location of the eye relative to the origin", GH_ParamAccess.item);
-            pManager.AddPointParameter("Origin", "Origin", "Origin of the chair-eye config", GH_ParamAccess.item);
+            pManager.AddPointParameter("EyeLocation", "Eye", "Location of the eye relative to the origin", GH_ParamAccess.item, new Point3d(155, 0, 97));
+            pManager.AddPointParameter("Origin", "Origin", "Origin of the chair-eye config", GH_ParamAccess.item, Point3d.Origin);
             pManager.AddCurveParameter("Chairs", "Chairs", "2d curves geometry of the chairs (illustrative)", GH_ParamAccess.list);
+            
+            pManager[2].Optional = true; // Chairs can be optional
         }
 
         protected override void RegisterOutputParams(GH_Component.GH_OutputParamManager pManager)
@@ -29,13 +31,13 @@ namespace Owl.Grasshopper.Components.Setup
 
         protected override void SolveInstance(IGH_DataAccess DA)
         {
-            Point3d eye = Point3d.Unset;
-            Point3d origin = Point3d.Unset;
+            Point3d eye = new Point3d(155, 0, 97);
+            Point3d origin = Point3d.Origin;
             List<Curve> chairs = new List<Curve>();
 
-            if (!DA.GetData(0, ref eye)) return;
-            if (!DA.GetData(1, ref origin)) return;
-            if (!DA.GetDataList(2, chairs)) return;
+            DA.GetData(0, ref eye);
+            DA.GetData(1, ref origin);
+            DA.GetDataList(2, chairs);
 
             var setup = new AudienceSetup(eye, origin, chairs);
             DA.SetData(0, setup);

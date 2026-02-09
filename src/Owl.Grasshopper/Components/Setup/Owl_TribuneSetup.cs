@@ -17,8 +17,8 @@ namespace Owl.Grasshopper.Components.Setup
         protected override void RegisterInputParams(GH_Component.GH_InputParamManager pManager)
         {
             pManager.AddIntegerParameter("Rows", "Rows", "Number of elevated rows", GH_ParamAccess.item, 10);
-            pManager.AddNumberParameter("RowWidths", "RowWs", "List of row widths (modules)", GH_ParamAccess.list, new List<double> { 0.8 });
-            pManager.AddIntegerParameter("Elevations", "Elev", "List of steps per row", GH_ParamAccess.list, new List<int> { 2 });
+            pManager.AddNumberParameter("RowWidths", "RowWs", "List of row widths (modules)", GH_ParamAccess.list, new List<double> { 200 });
+            pManager.AddIntegerParameter("Elevations", "Elev", "List of steps per row", GH_ParamAccess.list, new List<int> { 3 });
             pManager.AddBooleanParameter("StairInsets", "Insets", "Shift stairs by railing width (per row)", GH_ParamAccess.list, new List<bool> { false });
         }
 
