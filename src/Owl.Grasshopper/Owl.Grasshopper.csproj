@@ -21,6 +21,7 @@
 
   <ItemGroup>
     <EmbeddedResource Include="Icons\*.png" />
+    <EmbeddedResource Include="recliner.json" />
   </ItemGroup>
 
 </Project>

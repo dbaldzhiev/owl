@@ -123,8 +123,6 @@ venv.bak/
 *.gha
 *.rhp
 *.bak
-*.ghx
-*.gh
 
 ## [OS / System]
 # Windows image file caches
