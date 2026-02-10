@@ -17,6 +17,7 @@ namespace Owl.Grasshopper.Components.Setup
         protected override void RegisterInputParams(GH_Component.GH_InputParamManager pManager)
         {
             pManager.AddCurveParameter("ScreenCurve", "Crv", "Line curve representing the screen", GH_ParamAccess.item);
+            pManager[0].Optional = true;
         }
 
         protected override void RegisterOutputParams(GH_Component.GH_OutputParamManager pManager)
@@ -27,7 +28,11 @@ namespace Owl.Grasshopper.Components.Setup
         protected override void SolveInstance(IGH_DataAccess DA)
         {
             Curve crv = null;
-            if (!DA.GetData(0, ref crv)) return;
+            if (!DA.GetData(0, ref crv))
+            {
+                // Default curve: -600,0,200 to -600,0,700
+                crv = new LineCurve(new Point3d(-600, 0, 200), new Point3d(-600, 0, 700));
+            }
 
             var setup = new ScreenSetup(crv);
             DA.SetData(0, setup);

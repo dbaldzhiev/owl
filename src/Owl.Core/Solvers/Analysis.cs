@@ -9,19 +9,22 @@ namespace Owl.Core.Solvers
     public class Analysis
     {
         public static void Calculate(
-            AudienceSetup audience,
+            List<AudienceSetup> audiences,
             SerializedTribune serializedTribune,
             ScreenSetup screen,
             ProjectorSetup projector,
+            List<double> audienceOffsets,
             out List<Line> sightlines,
+            out List<List<Line>> limitLines,
             out Brep projectorCone,
-            out List<Curve> placedChairs)
+            out List<List<Curve>> placedChairs)
         {
             sightlines = new List<Line>();
+            limitLines = new List<List<Line>>();
             projectorCone = null;
-            placedChairs = new List<Curve>();
+            placedChairs = new List<List<Curve>>();
 
-            if (audience == null || serializedTribune == null)
+            if (audiences == null || audiences.Count == 0 || serializedTribune == null)
                 return;
 
             // 1. Determine Screen Extents (Top/Bottom)
@@ -42,32 +45,64 @@ namespace Owl.Core.Solvers
             // 2. Generate Eye Points & Chairs
             if (serializedTribune.RowPoints != null)
             {
-                // Vector from Chair Origin to Eye
-                Vector3d eyeOffset = audience.EyeLocation - audience.Origin;
-
-                Transform mirrorXform = Transform.Identity;
-                if (serializedTribune.Flip)
+                for (int i = 0; i < serializedTribune.RowPoints.Count; i++)
                 {
-                    eyeOffset.X = -eyeOffset.X;
-                    mirrorXform = Transform.Mirror(new Plane(audience.Origin, Vector3d.XAxis, Vector3d.ZAxis));
-                }
+                    AudienceSetup currentAudience = audiences[i % audiences.Count];
+                    if (currentAudience == null) continue;
 
-                foreach (var rowPoint in serializedTribune.RowPoints)
-                {
+                    // Vector from Chair Origin to Eye
+                    Vector3d baseEyeOffset = currentAudience.EyeLocation - currentAudience.Origin;
+
+                    Point3d rowPoint = serializedTribune.RowPoints[i];
+                    double xOffsetVal = 0;
+                    if (audienceOffsets != null && audienceOffsets.Count > 0)
+                    {
+                        xOffsetVal = audienceOffsets[i % audienceOffsets.Count];
+                    }
+
+                    Vector3d xOffsetVec = new Vector3d(xOffsetVal, 0, 0);
+                    Vector3d currentEyeOffset = baseEyeOffset + xOffsetVec;
+
+                    Transform mirrorXform = Transform.Identity;
+                    if (serializedTribune.Flip)
+                    {
+                        currentEyeOffset.X = -currentEyeOffset.X;
+                        // Mirror across YZ plane (Normal = X) at audience.Origin
+                        mirrorXform = Transform.Mirror(new Plane(currentAudience.Origin, Vector3d.YAxis, Vector3d.ZAxis));
+                        xOffsetVec.X = -xOffsetVec.X;
+                    }
+
                     // Eye Point
-                    Point3d eye = rowPoint + eyeOffset;
+                    Point3d eye = rowPoint + currentEyeOffset;
+
+                    // Sightlines
                     if (hasScreen)
                     {
                         sightlines.Add(new Line(eye, screenBottom));
                     }
 
+                    // Limit Lines (Vertical at X=45, 182.5, 200 relative to rowPoint)
+                    var rowLimits = new List<Line>();
+                    double z0 = rowPoint.Z;
+                    double z1 = rowPoint.Z + 50;
+
+                    double xF = rowPoint.X + (serializedTribune.Flip ? -currentAudience.FrontLimit : currentAudience.FrontLimit) + (serializedTribune.Flip ? -xOffsetVal : xOffsetVal);
+                    double xHB = rowPoint.X + (serializedTribune.Flip ? -currentAudience.HardBackLimit : currentAudience.HardBackLimit) + (serializedTribune.Flip ? -xOffsetVal : xOffsetVal);
+                    double xSB = rowPoint.X + (serializedTribune.Flip ? -currentAudience.SoftBackLimit : currentAudience.SoftBackLimit) + (serializedTribune.Flip ? -xOffsetVal : xOffsetVal);
+
+                    rowLimits.Add(new Line(new Point3d(xF, 0, z0), new Point3d(xF, 0, z1)));
+                    rowLimits.Add(new Line(new Point3d(xHB, 0, z0), new Point3d(xHB, 0, z1)));
+                    rowLimits.Add(new Line(new Point3d(xSB, 0, z0), new Point3d(xSB, 0, z1)));
+                    limitLines.Add(rowLimits);
+
                     // Place Chairs
-                    if (audience.Chairs != null)
+                    var rowChairs = new List<Curve>();
+                    if (currentAudience.Chairs != null)
                     {
-                        Vector3d move = rowPoint - audience.Origin;
+                        Vector3d move = (rowPoint - currentAudience.Origin) + xOffsetVec;
                         var moveXform = Transform.Translation(move);
                         
-                        foreach (var chairCrv in audience.Chairs)
+                        foreach (var chairCrv in currentAudience.Chairs)
                         {
                             if (chairCrv == null) continue;
                             var dup = chairCrv.DuplicateCurve();
@@ -76,9 +111,10 @@ namespace Owl.Core.Solvers
                                 dup.Transform(mirrorXform);
                             }
                             dup.Transform(moveXform);
-                            placedChairs.Add(dup);
+                            rowChairs.Add(dup);
                         }
                     }
+                    placedChairs.Add(rowChairs);
                 }
             }
 

@@ -16,7 +16,7 @@ namespace Owl.Grasshopper.Components.Setup
 
         protected override void RegisterInputParams(GH_Component.GH_InputParamManager pManager)
         {
-            pManager.AddPointParameter("Location", "Loc", "Projector location point", GH_ParamAccess.item);
+            pManager.AddPointParameter("Location", "Loc", "Projector location point", GH_ParamAccess.item, new Point3d(2000, 0, 750));
         }
 
         protected override void RegisterOutputParams(GH_Component.GH_OutputParamManager pManager)
@@ -26,8 +26,8 @@ namespace Owl.Grasshopper.Components.Setup
 
         protected override void SolveInstance(IGH_DataAccess DA)
         {
-            Point3d loc = Point3d.Unset;
-            if (!DA.GetData(0, ref loc)) return;
+            Point3d loc = new Point3d(2000, 0, 750);
+            DA.GetData(0, ref loc);
 
             var setup = new ProjectorSetup(loc);
             DA.SetData(0, setup);

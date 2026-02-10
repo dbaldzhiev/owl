@@ -123,7 +123,7 @@ namespace Owl.Core.Solvers
             if (tribPts.Count > 1)
                 tribuneProfile = new Polyline(tribPts).ToNurbsCurve();
             
-            serializedTribune = new SerializedTribune(rowPoints);
+            serializedTribune = new SerializedTribune(rowPoints, gaps);
 
             // -----------------------------
             // B) STAIRS PROFILE

@@ -20,6 +20,9 @@ namespace Owl.Grasshopper.Components.Setup
             pManager.AddPointParameter("EyeLocation", "Eye", "Location of the eye relative to the origin", GH_ParamAccess.item, new Point3d(155, 0, 97));
             pManager.AddPointParameter("Origin", "Origin", "Origin of the chair-eye config", GH_ParamAccess.item, Point3d.Origin);
             pManager.AddCurveParameter("Chairs", "Chairs", "2d curves geometry of the chairs (illustrative)", GH_ParamAccess.list);
+            pManager.AddNumberParameter("FrontLimit", "FLimit", "Front limit (default 45)", GH_ParamAccess.item, 45.0);
+            pManager.AddNumberParameter("HardBackLimit", "HBLimit", "Hard-back limit (default 182.5)", GH_ParamAccess.item, 182.5);
+            pManager.AddNumberParameter("SoftBackLimit", "SBLimit", "Soft-back limit (default 200)", GH_ParamAccess.item, 200.0);
             
             pManager[2].Optional = true; // Chairs can be optional
         }
@@ -34,12 +37,18 @@ namespace Owl.Grasshopper.Components.Setup
             Point3d eye = new Point3d(155, 0, 97);
             Point3d origin = Point3d.Origin;
             List<Curve> chairs = new List<Curve>();
+            double flimit = 45.0;
+            double hblimit = 182.5;
+            double sblimit = 200.0;
 
             DA.GetData(0, ref eye);
             DA.GetData(1, ref origin);
             DA.GetDataList(2, chairs);
+            DA.GetData(3, ref flimit);
+            DA.GetData(4, ref hblimit);
+            DA.GetData(5, ref sblimit);
 
-            var setup = new AudienceSetup(eye, origin, chairs);
+            var setup = new AudienceSetup(eye, origin, chairs, flimit, hblimit, sblimit);
             DA.SetData(0, setup);
         }
 
