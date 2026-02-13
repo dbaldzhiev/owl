@@ -18,7 +18,7 @@ namespace Owl.Core.Solvers
             _railings = railings ?? throw new ArgumentNullException(nameof(railings));
         }
 
-        public void Solve(out Curve tribuneProfile, out Curve stairsProfile, out List<Curve> railingProfiles, out List<double> gaps, out SerializedTribune serializedTribune, out List<Line> tribRows, out List<Point3d> rrInt, bool flip = false, Point3d origin = default)
+        public void Solve(out Curve tribuneProfile, out Curve stairsProfile, out List<Curve> railingProfiles, out List<double> gaps, out SerializedTribune serializedTribune, out List<Line> tribRows, out List<Point3d> rrInt, bool flip = false, Point3d origin = default, List<bool> railingToggles = null, List<AudienceSetup> audiences = null)
         {
             tribuneProfile = null;
             stairsProfile = null;
@@ -100,19 +100,30 @@ namespace Owl.Core.Solvers
                 tribRows.Add(new Line(new Point3d(currX, 0, currZ), rEnd)); // Physical row starts at currX
 
                 // --- Generate Railing at this Riser ---
-                double rBottomZ = currZ - rowRise;
-                double rTopZ = currZ + _railings.RailHeight;
-                // railW is already defined above
-
-                Point3d p0 = new Point3d(currX, 0, rBottomZ);
-                Point3d p1 = new Point3d(currX, 0, rTopZ);
-                Point3d p2 = new Point3d(currX + railW, 0, rTopZ);
-                Point3d p3 = new Point3d(currX + railW, 0, rBottomZ);
-
-                if (railW < thisRowWidth)
+                // Determine if railing is ON for this row 'r'
+                // Toggles list index corresponds to row index 'r'
+                bool showRailing = true;
+                if (railingToggles != null && railingToggles.Count > 0)
                 {
-                    var railRec = new Polyline(new[] { p0, p1, p2, p3, p0 });
-                    railingProfiles.Add(railRec.ToNurbsCurve());
+                    showRailing = railingToggles[r % railingToggles.Count];
+                }
+
+                if (showRailing)
+                {
+                    double rBottomZ = currZ - rowRise;
+                    double rTopZ = currZ + _railings.RailHeight;
+                    // railW is already defined above
+
+                    Point3d p0 = new Point3d(currX, 0, rBottomZ);
+                    Point3d p1 = new Point3d(currX, 0, rTopZ);
+                    Point3d p2 = new Point3d(currX + railW, 0, rTopZ);
+                    Point3d p3 = new Point3d(currX + railW, 0, rBottomZ);
+
+                    if (railW < thisRowWidth)
+                    {
+                        var railRec = new Polyline(new[] { p0, p1, p2, p3, p0 });
+                        railingProfiles.Add(railRec.ToNurbsCurve());
+                    }
                 }
 
                 // 2. Tread FORWARD
@@ -206,7 +217,42 @@ namespace Owl.Core.Solvers
                 double prevRiserX = currentBaseX - getRowWidth(r);
                 if (r == 0) prevRiserX = 0; 
                 
-                double railInnerFace = prevRiserX + _railings.RailWidth;
+                // Determine if railing is ON for this row 'r'
+                bool showRailing = true;
+                if (railingToggles != null && railingToggles.Count > 0)
+                {
+                    showRailing = railingToggles[r % railingToggles.Count];
+                }
+
+                double backOffset = _railings.RailWidth; // Default to rail width (physical presence)
+                
+                if (!showRailing)
+                {
+                    // Railing is OFF. Check for Audience limits.
+                    if (audiences != null && audiences.Count > 0)
+                    {
+                        var aud = audiences[r % audiences.Count];
+                        if (aud != null)
+                        {
+                            // "calculated from front rows hard limit line"
+                            // Assuming HardBackLimit defines the back boundary of the seating area relative to row start.
+                            backOffset = aud.HardBackLimit;
+                        }
+                    }
+                    else
+                    {
+                        // No audience provided, but railing is off. 
+                        // If we assume no physical obstruction, maybe 0?
+                        // However, to be safe and avoid zero-width gaps if not intended, 
+                        // we'll keep RailWidth as a placeholder or 0 if user wants "pure" gap.
+                        // Given user request "when there is no railing the chair gaps are calculated from...",
+                        // it implies a specific alternative behavior.
+                        // I'll set it to 0 if no audience, meaning gap starts directly at riser.
+                        backOffset = 0.0;
+                    }
+                }
+                
+                double railInnerFace = prevRiserX + backOffset;
                 if (r == 0) railInnerFace = 0; 
                 
                 double thisGap = startX - railInnerFace;

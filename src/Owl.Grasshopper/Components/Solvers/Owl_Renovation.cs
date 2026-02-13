@@ -28,6 +28,7 @@ namespace Owl.Grasshopper.Components.Solvers
             pManager.AddPointParameter("BLOrigin", "BLO", "Back limit intersection point", GH_ParamAccess.item);
             pManager.AddCurveParameter("Treads", "T", "Horizontal segments of the tribune", GH_ParamAccess.list);
             pManager.AddCurveParameter("Risers", "R", "Vertical segments of the tribune", GH_ParamAccess.list);
+            pManager.AddGenericParameter("SerializedTribune", "STrib", "Serialized Existing Tribune", GH_ParamAccess.item);
         }
 
         protected override void SolveInstance(IGH_DataAccess DA)
@@ -45,12 +46,13 @@ namespace Owl.Grasshopper.Components.Solvers
             List<Curve> treads;
             List<Curve> risers;
 
-            Renovation.Solve(fl, bl, trib, out flOrigin, out blOrigin, out treads, out risers);
+            var existingTribune = Renovation.Solve(fl, bl, trib, out flOrigin, out blOrigin, out treads, out risers);
 
             DA.SetData(0, flOrigin);
             DA.SetData(1, blOrigin);
             DA.SetDataList(2, treads);
             DA.SetDataList(3, risers);
+            DA.SetData(4, existingTribune);
         }
 
         protected override System.Drawing.Bitmap Icon => null;

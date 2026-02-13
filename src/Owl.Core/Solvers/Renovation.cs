@@ -1,18 +1,19 @@
 using Rhino.Geometry;
 using Rhino.Geometry.Intersect;
+using Owl.Core.Primitives;
 
 namespace Owl.Core.Solvers
 {
     public class Renovation
     {
-        public static void Solve(Curve frontLimit, Curve backLimit, Curve tribune, out Point3d flOrigin, out Point3d blOrigin, out List<Curve> treads, out List<Curve> risers)
+        public static SerializedTribune Solve(Curve frontLimit, Curve backLimit, Curve tribune, out Point3d flOrigin, out Point3d blOrigin, out List<Curve> treads, out List<Curve> risers)
         {
             flOrigin = Point3d.Unset;
             blOrigin = Point3d.Unset;
             treads = new List<Curve>();
             risers = new List<Curve>();
 
-            if (tribune == null) return;
+            if (tribune == null) return new SerializedTribune();
 
             // 1. Intersections
             if (frontLimit != null)
@@ -65,6 +66,8 @@ namespace Owl.Core.Solvers
                     }
                 }
             }
+
+            return new SerializedTribune(null, null, false, risers, treads);
         }
     }
 }

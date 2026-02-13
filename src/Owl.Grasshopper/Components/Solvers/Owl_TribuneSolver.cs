@@ -23,6 +23,11 @@ namespace Owl.Grasshopper.Components.Solvers
             pManager.AddGenericParameter("RailingSetup", "Rail", "Railing Setup Object", GH_ParamAccess.item);
             pManager.AddBooleanParameter("Flip", "Flip", "Flip the tribune (Right-to-Left)", GH_ParamAccess.item, false);
             pManager.AddPointParameter("Origin", "Origin", "Origin point of the tribune", GH_ParamAccess.item, Point3d.Origin);
+            pManager.AddBooleanParameter("RailingToggles", "RailTogs", "List of booleans to toggle railing per row", GH_ParamAccess.list);
+            pManager.AddGenericParameter("AudienceSetup", "Audience", "Audience Setup List (optional for gap calc)", GH_ParamAccess.list);
+            
+            pManager[5].Optional = true;
+            pManager[6].Optional = true;
         }
 
         protected override void RegisterOutputParams(GH_Component.GH_OutputParamManager pManager)
@@ -43,12 +48,16 @@ namespace Owl.Grasshopper.Components.Solvers
             RailingSetup railings = null;
             bool flip = false;
             Point3d origin = Point3d.Origin;
+            List<bool> railingToggles = new List<bool>();
+            List<AudienceSetup> audiences = new List<AudienceSetup>();
 
             if (!DA.GetData(0, ref tribune) || tribune == null) return;
             if (!DA.GetData(1, ref stairs) || stairs == null) return;
             if (!DA.GetData(2, ref railings) || railings == null) return;
             DA.GetData(3, ref flip);
             DA.GetData(4, ref origin);
+            DA.GetDataList(5, railingToggles);
+            DA.GetDataList(6, audiences);
 
             TribuneSolver solver = new TribuneSolver(tribune, stairs, railings);
             Curve tripP;
@@ -59,7 +68,7 @@ namespace Owl.Grasshopper.Components.Solvers
             List<Line> tribRows;
             List<Point3d> rrInt;
 
-            solver.Solve(out tripP, out stairsP, out railsP, out gaps, out strib, out tribRows, out rrInt, flip, origin);
+            solver.Solve(out tripP, out stairsP, out railsP, out gaps, out strib, out tribRows, out rrInt, flip, origin, railingToggles, audiences);
 
             DA.SetData(0, tripP);
             DA.SetData(1, stairsP);

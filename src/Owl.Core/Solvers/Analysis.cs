@@ -14,8 +14,6 @@ namespace Owl.Core.Solvers
             ScreenSetup screen,
             ProjectorSetup projector,
             List<double> audienceOffsets,
-            List<Curve> existingRisers,
-            bool alignFirstRow,
             out List<Line> sightlines,
             out List<List<Line>> limitLines,
             out Brep projectorCone,
@@ -61,63 +59,6 @@ namespace Owl.Core.Solvers
                     {
                         xOffsetVal = audienceOffsets[i % audienceOffsets.Count];
                     }
-
-                    // --- First Row Alignment Logic ---
-                    if (i == 0 && alignFirstRow && existingRisers != null)
-                    {
-                        // We want to find an intersection with existing risers "behind" the row
-                        // Direction of "Back": If NOT flipped, Back is -X. If Flipped, Back is +X.
-                        Vector3d backDir = serializedTribune.Flip ? Vector3d.XAxis : -Vector3d.XAxis;
-                        
-                        // Create a ray/line backwards
-                        // We start slightly offset to avoid self-intersection if exactly on edge, ensuring we look "back"
-                        Line ray = new Line(rowPoint, rowPoint + backDir * 10000); 
-
-                        double closestDist = double.MaxValue;
-                        Point3d? bestInt = null;
-
-                        foreach (var riser in existingRisers)
-                        {
-                            if (riser == null) continue;
-                            var events = Rhino.Geometry.Intersect.Intersection.CurveCurve(ray.ToNurbsCurve(), riser, 0.001, 0.001);
-                            foreach (var ev in events)
-                            {
-                                double dist = rowPoint.DistanceTo(ev.PointA);
-                                if (dist < closestDist)
-                                {
-                                    closestDist = dist;
-                                    bestInt = ev.PointA;
-                                }
-                            }
-                        }
-
-                        if (bestInt.HasValue)
-                        {
-                            // We found a riser intersection behind the row.
-                            // We want the chair's HardBackLimit (X_HB) to align with bestInt.X.
-                            // Formula for X_HB:
-                            // xHB = rowPoint.X + (Flip ? -HardBack : HardBack) + (Flip ? -offset : offset)
-                            // Let target X = bestInt.Value.X
-                            // We solve for 'offset'.
-                            
-                            double targetX = bestInt.Value.X;
-                            double hbLimit = currentAudience.HardBackLimit;
-
-                            if (serializedTribune.Flip)
-                            {
-                                // targetX = rowPoint.X - hbLimit - offset
-                                // offset = rowPoint.X - hbLimit - targetX
-                                xOffsetVal = rowPoint.X - hbLimit - targetX;
-                            }
-                            else
-                            {
-                                // targetX = rowPoint.X + hbLimit + offset
-                                // offset = targetX - rowPoint.X - hbLimit
-                                xOffsetVal = targetX - rowPoint.X - hbLimit;
-                            }
-                        }
-                    }
-                    // ---------------------------------
 
                     Vector3d xOffsetVec = new Vector3d(xOffsetVal, 0, 0);
                     Vector3d currentEyeOffset = baseEyeOffset + xOffsetVec;
