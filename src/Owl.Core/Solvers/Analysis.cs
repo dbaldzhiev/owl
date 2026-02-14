@@ -8,38 +8,32 @@ namespace Owl.Core.Solvers
 {
     public class Analysis
     {
-        public static SerializedAnalysis Calculate(
+        public static void Calculate(
             List<AudienceSetup> audiences,
             SerializedTribune serializedTribune,
-            RailingSetup railing,
             ScreenSetup screen,
             ProjectorSetup projector,
             List<double> audienceOffsets,
-            PlanSetup plan)
+            PlanSetup plan,
+            out List<Line> sightlines,
+            out List<List<Line>> limitLines,
+            out Brep projectorCone,
+            out List<List<GeometryBase>> placedChairs,
+            out List<Curve> planTribuneLines,
+            out List<Curve> planRailingLines,
+            out List<Curve> planStairLines)
         {
-            var result = new SerializedAnalysis(serializedTribune, audiences, new List<Line>(), audienceOffsets, plan);
-            
-            result.Sightlines = new List<Line>();
-            // limitLines will be flat list in SerializedAnalysis for simplicity or we keep List<List> structure? 
-            // SerializedAnalysis has List<Line> LimitLines. Let's flatten or change SerializedAnalysis.
-            // Wait, looking at SerializedAnalysis update, I added List<Line> LimitLines. 
-            // But usually limits are per row. 
-            // In Analysis.cs it was List<List<Line>>. 
-            // I should probably keep it List<Line> and just add all segments, or change property to List<List<Line>>?
-            // User visualization usually wants data tree. Flattened is easier for serialization.
-            // Let's stick with flattened List<Line> for now, or List<List> if I can change SerializedAnalysis again.
-            // I defined `public List<Line> LimitLines { get; set; }` in previous step.
-            // So I will flatten it.
-            
-            // result.LimitLines is List<Line>
-            // result.SectionChairs is List<List<GeometryBase>>
-            // result.Plan... are List<Curve>
-            // result.PlanChairs is List<List<GeometryBase>>
+            sightlines = new List<Line>();
+            limitLines = new List<List<Line>>();
+            projectorCone = null;
+            placedChairs = new List<List<GeometryBase>>();
+            planTribuneLines = new List<Curve>();
+            planRailingLines = new List<Curve>();
+            planStairLines = new List<Curve>();
 
             if (audiences == null || audiences.Count == 0 || serializedTribune == null)
-                return result;
+                return;
 
-            // ... (Screen Extents Logic remains same, lines 37-50) ...
             // 1. Determine Screen Extents (Top/Bottom)
             Point3d screenBottom = Point3d.Unset;
             Point3d screenTop = Point3d.Unset;
@@ -55,49 +49,7 @@ namespace Owl.Core.Solvers
                 hasScreen = true;
             }
 
-            // --- PLAN GEOMETRY GENERATION ---
-            if (plan != null && plan.TribuneBoundary != null)
-            {
-                var bBox = plan.TribuneBoundary.GetBoundingBox(true);
-                double yMin = bBox.Min.Y - 1000;
-                double yMax = bBox.Max.Y + 1000;
-
-                // 1. Tribune Lines (from Risers/Treads)
-                // We use Risers X coordinates to draw the step edges
-                var tribuneSources = serializedTribune.Risers; 
-                if (tribuneSources == null || tribuneSources.Count == 0) tribuneSources = serializedTribune.Treads; // Fallback
-
-                if (tribuneSources != null)
-                {
-                    foreach (var crv in tribuneSources)
-                    {
-                        if (crv == null) continue;
-                        double x = crv.PointAtStart.X + plan.Origin.X;
-                        Line rowLine = new Line(new Point3d(x, yMin, 0), new Point3d(x, yMax, 0));
-                        var segs = GetClippedSegments(rowLine, new List<Curve> { plan.TribuneBoundary }, plan.TunnelBoundary != null ? new List<Curve> { plan.TunnelBoundary } : null);
-                        result.PlanTribune.AddRange(segs.Select(s => s.ToNurbsCurve()));
-                    }
-                }
-
-                // 2. Stair Lines (from StairPoints)
-                if (serializedTribune.StairPoints != null)
-                {
-                    // Group/Unique X coordinates to avoid duplicates if multiple points align
-                    var stairXs = serializedTribune.StairPoints.Select(p => p.X).Distinct().ToList();
-                    foreach (var val in stairXs)
-                    {
-                        double x = val + plan.Origin.X;
-                        Line rowLine = new Line(new Point3d(x, yMin, 0), new Point3d(x, yMax, 0));
-                        if (plan.AisleBoundaries != null && plan.AisleBoundaries.Count > 0)
-                        {
-                            var segs = GetClippedSegments(rowLine, plan.AisleBoundaries, plan.TunnelBoundary != null ? new List<Curve> { plan.TunnelBoundary } : null);
-                            result.PlanStairs.AddRange(segs.Select(s => s.ToNurbsCurve()));
-                        }
-                    }
-                }
-            }
-
-            // 2. Generate Eye Points & Chairs & Railings
+            // 2. Generate Eye Points & Chairs
             if (serializedTribune.RowPoints != null)
             {
                 for (int i = 0; i < serializedTribune.RowPoints.Count; i++)
@@ -105,11 +57,16 @@ namespace Owl.Core.Solvers
                     AudienceSetup currentAudience = audiences[i % audiences.Count];
                     if (currentAudience == null) continue;
 
-                    // ... (Eye Point Logic lines 60-103) ...
                     // Vector from Chair Origin to Eye
                     Vector3d baseEyeOffset = currentAudience.EyeLocation - currentAudience.Origin;
+
                     Point3d rowPoint = serializedTribune.RowPoints[i];
-                    double xOffsetVal = (audienceOffsets != null && audienceOffsets.Count > 0) ? audienceOffsets[i % audienceOffsets.Count] : 0;
+                    double xOffsetVal = 0;
+                    if (audienceOffsets != null && audienceOffsets.Count > 0)
+                    {
+                        xOffsetVal = audienceOffsets[i % audienceOffsets.Count];
+                    }
+
                     Vector3d xOffsetVec = new Vector3d(xOffsetVal, 0, 0);
                     Vector3d currentEyeOffset = baseEyeOffset + xOffsetVec;
 
@@ -117,73 +74,90 @@ namespace Owl.Core.Solvers
                     if (serializedTribune.Flip)
                     {
                         currentEyeOffset.X = -currentEyeOffset.X;
+                        // Mirror across YZ plane (Normal = X) at audience.Origin
                         mirrorXform = Transform.Mirror(new Plane(currentAudience.Origin, Vector3d.YAxis, Vector3d.ZAxis));
                         xOffsetVec.X = -xOffsetVec.X;
                     }
+
+                    // Eye Point
                     Point3d eye = rowPoint + currentEyeOffset;
 
-                    if (hasScreen) result.Sightlines.Add(new Line(eye, screenBottom));
+                    // Sightlines
+                    if (hasScreen)
+                    {
+                        sightlines.Add(new Line(eye, screenBottom));
+                    }
 
-                    // Limit Lines
+                    // Limit Lines (Vertical at X=45, 182.5, 200 relative to rowPoint)
+                    var rowLimits = new List<Line>();
                     double z0 = rowPoint.Z;
                     double z1 = rowPoint.Z + 50;
+
                     double xF = rowPoint.X + (serializedTribune.Flip ? -currentAudience.FrontLimit : currentAudience.FrontLimit) + (serializedTribune.Flip ? -xOffsetVal : xOffsetVal);
                     double xHB = rowPoint.X + (serializedTribune.Flip ? -currentAudience.HardBackLimit : currentAudience.HardBackLimit) + (serializedTribune.Flip ? -xOffsetVal : xOffsetVal);
                     double xSB = rowPoint.X + (serializedTribune.Flip ? -currentAudience.SoftBackLimit : currentAudience.SoftBackLimit) + (serializedTribune.Flip ? -xOffsetVal : xOffsetVal);
-                    
-                    result.LimitLines.Add(new Line(new Point3d(xF, 0, z0), new Point3d(xF, 0, z1)));
-                    result.LimitLines.Add(new Line(new Point3d(xHB, 0, z0), new Point3d(xHB, 0, z1)));
-                    result.LimitLines.Add(new Line(new Point3d(xSB, 0, z0), new Point3d(xSB, 0, z1)));
 
-                    // Place Chairs & Railings (Plan Distribution)
+                    rowLimits.Add(new Line(new Point3d(xF, 0, z0), new Point3d(xF, 0, z1)));
+                    rowLimits.Add(new Line(new Point3d(xHB, 0, z0), new Point3d(xHB, 0, z1)));
+                    rowLimits.Add(new Line(new Point3d(xSB, 0, z0), new Point3d(xSB, 0, z1)));
+                    limitLines.Add(rowLimits);
+
+                    // Place Chairs (Plan Distribution)
                     var rowChairs = new List<GeometryBase>();
 
                     if (plan != null && plan.TribuneBoundary != null)
                     {
-                         var bBox = plan.TribuneBoundary.GetBoundingBox(true);
-                         double planX = rowPoint.X + plan.Origin.X;
-                         Line rowLine = new Line(new Point3d(planX, bBox.Min.Y - 1000, 0), new Point3d(planX, bBox.Max.Y + 1000, 0));
-                         
-                         // Get base segments for Tribune/Railings
-                         var tribSegments = GetClippedSegments(rowLine, new List<Curve> { plan.TribuneBoundary }, plan.TunnelBoundary != null ? new List<Curve> { plan.TunnelBoundary } : null);
-                         
-                         // Railing Rectangles
-                         // Subtract Aisles
-                         var railSegments = Subtract_intervalsFromSegments(tribSegments, plan.AisleBoundaries, rowLine);
-                         
-                         // Generate Railing Rectangles
-                         if (railing != null)
-                         {
-                             foreach (var seg in railSegments)
-                             {
-                                 double rW = railing.RailWidth;
-                                 Point3d p0 = seg.From; 
-                                 Point3d p1 = seg.To;
-                                 Point3d p2 = new Point3d(p1.X + rW, p1.Y, 0);
-                                 Point3d p3 = new Point3d(p0.X + rW, p0.Y, 0);
-                                 
-                                 var poly = new Polyline(new[] { p0, p3, p2, p1, p0 });
-                                 result.PlanRailings.Add(poly.ToNurbsCurve());
-                             }
-                         }
+                        // Calculate row line in plan
+                        // Assuming Section X corresponds to Plan X relative to plan.Origin
+                        double planX = rowPoint.X + plan.Origin.X;
+                        
+                        // We need to intersect a line at planX with the boundary
+                        // However, a simpler approach if we assume aligned plan:
+                        // Find the Y range of the boundary at this X
+                        
+                        var bBox = plan.TribuneBoundary.GetBoundingBox(true);
+                        Line rowLine = new Line(new Point3d(planX, bBox.Min.Y - 1000, 0), new Point3d(planX, bBox.Max.Y + 1000, 0));
+                        
+                        // 1. Tribune Lines: Boundary - Tunnel
+                        var tribSegments = GetClippedSegments(rowLine, new List<Curve> { plan.TribuneBoundary }, plan.TunnelBoundary != null ? new List<Curve> { plan.TunnelBoundary } : null);
+                        planTribuneLines.AddRange(tribSegments.Select(s => s.ToNurbsCurve()));
+                        
+                        // 2. Stair Lines: Aisles - Tunnel
+                        List<Line> stairSegments = new List<Line>();
+                        if (plan.AisleBoundaries != null && plan.AisleBoundaries.Count > 0)
+                        {
+                            stairSegments = GetClippedSegments(rowLine, plan.AisleBoundaries, plan.TunnelBoundary != null ? new List<Curve> { plan.TunnelBoundary } : null);
+                            planStairLines.AddRange(stairSegments.Select(s => s.ToNurbsCurve()));
+                        }
+                        
+                        // 3. Railing/Chair Lines: Boundary - Tunnel - Aisles
+                        // Logic: Start with Tribune segments, subtract Aisles
+                        var railSegments = Subtract_intervalsFromSegments(tribSegments, plan.AisleBoundaries, rowLine);
+                        planRailingLines.AddRange(railSegments.Select(s => s.ToNurbsCurve()));
 
-                        // Distribute Chairs (existing logic)
+                        // Distribute Chairs
                         if (currentAudience.PlanGeo != null)
                         {
                             foreach (var line in railSegments)
                             {
-                                int count = (int)Math.Floor(line.Length / currentAudience.ChairWidth);
+                                double length = line.Length;
+                                int count = (int)Math.Floor(length / currentAudience.ChairWidth);
                                 if (count > 0)
                                 {
+                                    double spacing = length / count;
                                     for (int c = 0; c < count; c++)
                                     {
                                         double t = (c + 0.5) / count;
                                         Point3d chairPos = line.PointAt(t);
-                                        chairPos.Z = 0; // Flattened
+                                        chairPos.Z = rowPoint.Z;
 
                                         Transform xform;
-                                        var move = chairPos - currentAudience.PlanOriginPt; 
-                                        move.Z = 0; // Ensure pure XY translation
+                                        // If PlanGeo is instance definition logic, origin matters differently?
+                                        // User: "in audience setup the input for Pgeo needs to be a block definition. if it is a block definition it is dubious if you even need an origin because you can use the origin of the block"
+                                        // We treat PlanGeo as source geometry. If it's a block logic, the source geometry IS at the definition origin.
+                                        // So we just move from (0,0,0) (or PlanOriginPt if provided) to target.
+                                        
+                                        var move = chairPos - currentAudience.PlanOriginPt; // If PlanOriginPt is 0,0,0, this works directly.
                                         xform = Transform.Translation(move);
                                         
                                         var dup = currentAudience.PlanGeo.Duplicate();
@@ -192,23 +166,26 @@ namespace Owl.Core.Solvers
                                     }
                                 }
                             }
-                            result.PlanChairs.Add(rowChairs);
                         }
                     }
                     else if (currentAudience.Chairs != null) // Fallback Section Distribution
                     {
                         Vector3d move = (rowPoint - currentAudience.Origin) + xOffsetVec;
                         var moveXform = Transform.Translation(move);
+                        
                         foreach (var chairCrv in currentAudience.Chairs)
                         {
                             if (chairCrv == null) continue;
                             var dup = chairCrv.DuplicateCurve();
-                            if (serializedTribune.Flip) dup.Transform(mirrorXform);
+                            if (serializedTribune.Flip)
+                            {
+                                dup.Transform(mirrorXform);
+                            }
                             dup.Transform(moveXform);
                             rowChairs.Add(dup);
                         }
-                        result.SectionChairs.Add(rowChairs);
                     }
+                    placedChairs.Add(rowChairs);
                 }
             }
 
@@ -228,11 +205,9 @@ namespace Owl.Core.Solvers
                 {
                     var brep = Brep.CreatePlanarBreps(polyline.ToNurbsCurve(), 0.001);
                     if (brep != null && brep.Length > 0)
-                        result.ProjectorCone = brep[0];
+                        projectorCone = brep[0];
                 }
             }
-            
-            return result;
         }
 
         private static List<Line> GetClippedSegments(Line baseLine, List<Curve> inclusions, List<Curve> exclusions)

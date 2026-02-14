@@ -26,25 +26,30 @@ namespace Owl.Grasshopper.Components.Solvers
             pManager.AddGenericParameter("ScreenSetup", "Screen", "Screen Setup Object", GH_ParamAccess.item);
             pManager.AddNumberParameter("AudienceOffsets", "Offsets", "List of X offsets for chairs and eyes per row", GH_ParamAccess.list);
             pManager.AddGenericParameter("PlanSetup", "Plan", "Serialized Plan Setup Object", GH_ParamAccess.item);
-            pManager.AddGenericParameter("RailingSetup", "Railing", "Railing Setup Object", GH_ParamAccess.item);
             
             pManager[2].Optional = true;
             pManager[3].Optional = true;
             pManager[4].Optional = true;
             pManager[5].Optional = true;
-            pManager[6].Optional = true;
         }
 
         protected override void RegisterOutputParams(GH_Component.GH_OutputParamManager pManager)
         {
-            pManager.AddGenericParameter("SerializedAnalysis", "SAnalisys", "Serialized Analysis Data container for visualization", GH_ParamAccess.item);
+            pManager.AddLineParameter("Sightlines", "Lines", "Sightlines from eyes to screen bottom", GH_ParamAccess.list);
+            pManager.AddBrepParameter("ProjectorCone", "Cone", "Projector cone geometry", GH_ParamAccess.item);
+            pManager.AddGenericParameter("Chairs", "Chairs", "Distributed chair geometry (Section)", GH_ParamAccess.tree);
+            pManager.AddLineParameter("LimitLines", "Limits", "Vertical lines for front and back limits", GH_ParamAccess.tree);
+            pManager.AddGenericParameter("SerializedAnalysis", "SAnalisys", "Serialized Analysis Data (for validation)", GH_ParamAccess.item);
+            pManager.AddCurveParameter("PlanTribune", "PlanTrib", "Plan Tribune Lines", GH_ParamAccess.list);
+            pManager.AddCurveParameter("PlanRailings", "PlanRail", "Plan Railing Lines", GH_ParamAccess.list);
+            pManager.AddCurveParameter("PlanStairs", "PlanStair", "Plan Stair Lines", GH_ParamAccess.list);
+            pManager.AddGenericParameter("PlanChairs", "PlanChairs", "Plan Distributed Chair Geometry (Blocks/Curves)", GH_ParamAccess.tree);
         }
 
         protected override void SolveInstance(IGH_DataAccess DA)
         {
             List<AudienceSetup> audiences = new List<AudienceSetup>();
             SerializedTribune strib = null;
-            RailingSetup railing = null;
             ProjectorSetup projector = null;
             ScreenSetup screen = null;
             List<double> offsets = new List<double>();
@@ -56,15 +61,51 @@ namespace Owl.Grasshopper.Components.Solvers
             DA.GetData(3, ref screen);
             DA.GetDataList(4, offsets);
             DA.GetData(5, ref plan);
-            DA.GetData(6, ref railing);
             
+            List<Line> sightlines;
+            List<List<Line>> limitLines;
+            Brep cone;
+            List<List<GeometryBase>> chairs;
             List<Curve> planTribune;
             List<Curve> planRailings;
             List<Curve> planStairs;
 
-            var analysisResult = Analysis.Calculate(audiences, strib, railing, screen, projector, offsets, plan);
+            Analysis.Calculate(audiences, strib, screen, projector, offsets, plan, 
+                out sightlines, 
+                out limitLines, 
+                out cone, 
+                out chairs,
+                out planTribune,
+                out planRailings,
+                out planStairs);
 
-            DA.SetData(0, analysisResult);
+            var serializedAnalysis = new SerializedAnalysis(strib, audiences, sightlines, offsets, plan);
+
+            // Convert to DataTrees
+            var limitTree = new DataTree<Line>();
+            for (int i = 0; i < limitLines.Count; i++)
+            {
+                limitTree.AddRange(limitLines[i], new GH_Path(i));
+            }
+
+            var chairTree = new DataTree<GeometryBase>();
+            for (int i = 0; i < chairs.Count; i++)
+            {
+                chairTree.AddRange(chairs[i], new GH_Path(i));
+            }
+
+            DA.SetDataList(0, sightlines);
+            DA.SetData(1, cone);
+            DA.SetDataTree(2, chairTree); // This might contain Plan Chairs or Section Chairs depending on what Analysis.Calculate put in there. 
+            // In my implementation of Calculate, 'placedChairs' contains the Plan chairs if plan is valid, or Section chairs if not.
+            // So output 2 is actually the main "Chairs" output.
+            DA.SetDataTree(3, limitTree);
+            DA.SetData(4, serializedAnalysis);
+            DA.SetDataList(5, planTribune);
+            DA.SetDataList(6, planRailings);
+            DA.SetDataList(7, planStairs);
+            DA.SetDataTree(8, chairTree); // Duplicating for explicit "PlanChairs" output, or just pointing user to generic chairs?
+            // User requested explicit visualization logic.
         }
 
         protected override System.Drawing.Bitmap Icon

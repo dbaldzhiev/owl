@@ -19,7 +19,6 @@ namespace Owl.Grasshopper.Components.Setup
         {
             pManager.AddPointParameter("Origin", "Origin", "Origin of the plan that corresponds to the section origin", GH_ParamAccess.item, Point3d.Origin);
             pManager.AddCurveParameter("TribuneBoundary", "Boundary", "Closed polygon representing the tribune boundary in plan", GH_ParamAccess.item);
-            pManager.AddCurveParameter("AisleBoundaries", "Aisles", "Closed polygons representing the aisle boundaries in plan", GH_ParamAccess.list);
             pManager.AddCurveParameter("TunnelBoundary", "Tunnel", "Closed polygon representing the tunnel boundary (void) in plan", GH_ParamAccess.item);
             
             pManager[2].Optional = true;
