@@ -81,6 +81,7 @@ namespace Owl.Grasshopper.Components.Solvers
             for (int i = 0; i < audiences.Count; i++)
             {
                 var aud = audiences[i];
+                aud.PlanGeometry = RebasePlanGeometry(aud.PlanGeometry, aud.PlanOriginPt);
                 if (aud.PlanChairBlockId == Guid.Empty && aud.PlanGeometry != null && aud.PlanGeometry.Count > 0)
                 {
                      // Try to define block 
@@ -212,6 +213,26 @@ namespace Owl.Grasshopper.Components.Solvers
                  return doc.InstanceDefinitions[index].Id;
              }
              return Guid.Empty;
+        }
+
+        private List<GeometryBase> RebasePlanGeometry(List<GeometryBase> source, Point3d planOrigin)
+        {
+            var result = new List<GeometryBase>();
+            if (source == null || source.Count == 0) return result;
+
+            Transform toWorldXY = Transform.PlanarProjection(Plane.WorldXY);
+            Transform toBlockOrigin = Transform.Translation(-planOrigin.X, -planOrigin.Y, 0.0);
+
+            foreach (var g in source)
+            {
+                if (g == null) continue;
+                var dup = g.Duplicate();
+                dup.Transform(toWorldXY);
+                dup.Transform(toBlockOrigin);
+                result.Add(dup);
+            }
+
+            return result;
         }
         
         private PlanSetup DeserializePlanSetup(string json)

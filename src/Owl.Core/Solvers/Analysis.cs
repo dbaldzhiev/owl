@@ -36,6 +36,34 @@ namespace Owl.Core.Solvers
             if (audiences == null || audiences.Count == 0 || serializedTribune == null)
                 return;
 
+            bool canProcessPlan = plan != null && plan.TribuneBoundary != null;
+            Vector3d planDepthAxis = serializedTribune.Flip ? -Vector3d.XAxis : Vector3d.XAxis;
+            double planRowMinY = 0.0;
+            double planRowMaxY = 0.0;
+
+            if (canProcessPlan)
+            {
+                // Plan drawing is expected in World XY.
+                var tribBox = plan.TribuneBoundary.GetBoundingBox(true);
+                if (Math.Abs(tribBox.Min.Z) > 0.001 || Math.Abs(tribBox.Max.Z) > 0.001)
+                {
+                    canProcessPlan = false;
+                }
+                else
+                {
+                    planRowMinY = tribBox.Min.Y - 10.0;
+                    planRowMaxY = tribBox.Max.Y + 10.0;
+
+                    // Validate that section depth axis points into boundary.
+                    var axisProbe = new Line(plan.Origin, plan.Origin + (planDepthAxis * 100000.0));
+                    var axisHits = Rhino.Geometry.Intersect.Intersection.CurveLine(plan.TribuneBoundary, axisProbe, 0.001, 0.001);
+                    if (axisHits == null || axisHits.Count == 0)
+                    {
+                        canProcessPlan = false;
+                    }
+                }
+            }
+
             // 1. Determine Screen Extents
             Point3d screenBottom = Point3d.Unset;
             Point3d screenTop = Point3d.Unset;
@@ -127,38 +155,15 @@ namespace Owl.Core.Solvers
             
                     var rowPlanChairs = new List<GeometryBase>();
                     
-                    // Use a local flag to skip processing if invalid, but keep lists synced
-                    bool proceedWithPlan = (plan != null && plan.TribuneBoundary != null);
-                    Vector3d planDepthAxis = Vector3d.XAxis;
-                    
-                    if (proceedWithPlan)
-                    {
-                        planDepthAxis = serializedTribune.Flip ? -Vector3d.XAxis : Vector3d.XAxis;
-                        
-                        // 2. Validate Axis Intersects Boundary
-                        Ray3d axisRay = new Ray3d(plan.Origin, planDepthAxis);
-                        var axisIntersections = Rhino.Geometry.Intersect.Intersection.CurveLine(plan.TribuneBoundary, new Line(axisRay.Position, axisRay.Position + planDepthAxis * 100000), 0.001, 0.001);
-                        
-                        if (axisIntersections == null || axisIntersections.Count == 0)
-                        {
-                            proceedWithPlan = false;
-                        }
-                    }
-
-                    if (proceedWithPlan)
+                    if (canProcessPlan)
                     {
                          double dX = Math.Abs(rowPoint.X - serializedTribune.Origin.X);
                          
                          // Station Point
                          Point3d stationPoint = plan.Origin + (planDepthAxis * dX);
                          stationPoint.Z = 0;
-                         
-                         // Row Line in Y direction
-                         var bBox = plan.TribuneBoundary.GetBoundingBox(true);
-                         double yMin = bBox.Min.Y - 10.0;
-                         double yMax = bBox.Max.Y + 10.0;
-                         
-                         Line rowLine = new Line(new Point3d(stationPoint.X, yMin, 0), new Point3d(stationPoint.X, yMax, 0));
+
+                         Line rowLine = new Line(new Point3d(stationPoint.X, planRowMinY, 0), new Point3d(stationPoint.X, planRowMaxY, 0));
                          
                          List<Curve> tribInclusions = new List<Curve> { plan.TribuneBoundary };
                          List<Curve> tunnelEx = plan.TunnelBoundary != null ? new List<Curve> { plan.TunnelBoundary } : null;
@@ -209,7 +214,7 @@ namespace Owl.Core.Solvers
                                      for (int k = 0; k < count; k++)
                                      {
                                          Point3d pt = startP + segDir * (k * currentAudience.ChairWidth);
-                                         Transform xform = Transform.Translation(pt - Point3d.Origin);
+                                         Transform xform = GetChairPlacementTransform(pt, segDir);
                                          
                                          if (currentAudience.PlanChairBlockId != Guid.Empty)
                                          {
@@ -257,66 +262,31 @@ namespace Owl.Core.Solvers
 
         private static List<Line> GetClippedSegments(Line baseLine, List<Curve> inclusions, List<Curve> exclusions)
         {
-            // 1. Get initial segments inside inclusions (Union of intervals)
-            List<Interval> includedIntervals = new List<Interval>();
-            if (inclusions != null)
-            {
-                foreach (var curve in inclusions)
-                {
-                    var intersects = Rhino.Geometry.Intersect.Intersection.CurveLine(curve, baseLine, 0.001, 0.001);
-                    if (intersects != null && intersects.Count >= 2)
-                    {
-                        // Get params on line (0 to 1)
-                        var ts = intersects.Select(i => i.ParameterB).OrderBy(t => t).ToList();
-                        for (int k = 0; k < ts.Count - 1; k += 2)
-                        {
-                            includedIntervals.Add(new Interval(ts[k], ts[k+1]));
-                        }
-                    }
-                }
-            }
-            else
+            if (inclusions == null || inclusions.Count == 0)
             {
                 return new List<Line>();
             }
 
-            // Merge included intervals
+            var includedIntervals = new List<Interval>();
+            foreach (var inc in inclusions)
+            {
+                includedIntervals.AddRange(GetLineIntervalsInsideCurve(baseLine, inc));
+            }
             includedIntervals = MergeIntervals(includedIntervals);
-            
-            // 2. Subtract exclusions
+
             if (exclusions != null)
             {
                 foreach (var ex in exclusions)
                 {
-                    var intersects = Rhino.Geometry.Intersect.Intersection.CurveLine(ex, baseLine, 0.001, 0.001);
-                    if (intersects != null && intersects.Count >= 2)
+                    var exIntervals = GetLineIntervalsInsideCurve(baseLine, ex);
+                    foreach (var exInterval in exIntervals)
                     {
-                         var ts = intersects.Select(i => i.ParameterB).OrderBy(t => t).ToList();
-                         for (int k = 0; k < ts.Count - 1; k += 2)
-                         {
-                             var exInterval = new Interval(ts[k], ts[k+1]);
-                             List<Interval> nextIncluded = new List<Interval>();
-                             foreach (var inc in includedIntervals)
-                             {
-                                 // Interval subtraction: inc - ex
-                                 
-                                 double t0 = inc.T0;
-                                 double t1 = inc.T1;
-                                 double e0 = exInterval.T0;
-                                 double e1 = exInterval.T1;
-                                 
-                                 if (e1 <= t0 + 0.001 || e0 >= t1 - 0.001) // No overlap or touch
-                                 {
-                                     nextIncluded.Add(inc);
-                                 }
-                                 else
-                                 {
-                                     if (e0 > t0 + 0.001) nextIncluded.Add(new Interval(t0, e0));
-                                     if (e1 < t1 - 0.001) nextIncluded.Add(new Interval(e1, t1));
-                                 }
-                             }
-                             includedIntervals = nextIncluded;
-                         }
+                        List<Interval> nextIncluded = new List<Interval>();
+                        foreach (var incInterval in includedIntervals)
+                        {
+                            nextIncluded.AddRange(SubtractInterval(incInterval, exInterval));
+                        }
+                        includedIntervals = nextIncluded;
                     }
                 }
             }
@@ -331,6 +301,76 @@ namespace Owl.Core.Solvers
                 }
             }
             return result;
+        }
+
+        private static IEnumerable<Interval> GetLineIntervalsInsideCurve(Line baseLine, Curve boundary)
+        {
+            const double tol = 0.001;
+            if (boundary == null || !boundary.IsClosed) yield break;
+
+            var parameters = new List<double> { 0.0, 1.0 };
+            var intersections = Rhino.Geometry.Intersect.Intersection.CurveLine(boundary, baseLine, tol, tol);
+            if (intersections != null)
+            {
+                foreach (var x in intersections)
+                {
+                    if (x.ParameterB > tol && x.ParameterB < 1.0 - tol)
+                    {
+                        parameters.Add(x.ParameterB);
+                    }
+                }
+            }
+
+            parameters = parameters.Distinct().OrderBy(t => t).ToList();
+            for (int i = 0; i < parameters.Count - 1; i++)
+            {
+                double t0 = parameters[i];
+                double t1 = parameters[i + 1];
+                if (t1 - t0 <= tol) continue;
+
+                double tm = (t0 + t1) * 0.5;
+                var mid = baseLine.PointAt(tm);
+                var inside = boundary.Contains(mid, Plane.WorldXY, tol);
+                if (inside == PointContainment.Inside || inside == PointContainment.Coincident)
+                {
+                    yield return new Interval(t0, t1);
+                }
+            }
+        }
+
+        private static IEnumerable<Interval> SubtractInterval(Interval source, Interval cut)
+        {
+            const double tol = 0.001;
+
+            double s0 = source.T0;
+            double s1 = source.T1;
+            double c0 = cut.T0;
+            double c1 = cut.T1;
+
+            if (c1 <= s0 + tol || c0 >= s1 - tol)
+            {
+                yield return source;
+                yield break;
+            }
+
+            if (c0 > s0 + tol)
+                yield return new Interval(s0, c0);
+
+            if (c1 < s1 - tol)
+                yield return new Interval(c1, s1);
+        }
+
+        private static Transform GetChairPlacementTransform(Point3d insertPoint, Vector3d rowDirection)
+        {
+            if (!rowDirection.Unitize())
+            {
+                return Transform.Translation(insertPoint - Point3d.Origin);
+            }
+
+            // Chairs are authored in local XY where local +Y follows row direction.
+            Transform orient = Transform.Rotation(Vector3d.YAxis, rowDirection, Point3d.Origin);
+            Transform move = Transform.Translation(insertPoint - Point3d.Origin);
+            return move * orient;
         }
 
         private static List<Interval> MergeIntervals(List<Interval> intervals)
