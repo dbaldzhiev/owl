@@ -10,7 +10,7 @@ namespace Owl.Grasshopper.Components.Solvers
     {
         public Owl_Validator()
           : base("Validator", "Validate",
-              "Validate sightlines and check gaps in the tribune setup.",
+              "Validate sightlines and check clearances in the tribune setup.",
               "Owl", "Solvers")
         {
         }
@@ -27,8 +27,8 @@ namespace Owl.Grasshopper.Components.Solvers
 
         protected override void RegisterOutputParams(GH_Component.GH_OutputParamManager pManager)
         {
-            pManager.AddNumberParameter("Gaps", "Gaps", "Distance from back of railing to stair (gaps)", GH_ParamAccess.list);
-            pManager.AddNumberParameter("RailingToFrontLimit", "R2FL", "Distance from back side of railing to front limit of audience", GH_ParamAccess.list);
+            pManager.AddNumberParameter("Gaps", "Gaps", "Horizontal gap between back of railing/HBL and stair flight (per stair flight)", GH_ParamAccess.list);
+            pManager.AddNumberParameter("RailingToFrontLimit", "R2FL", "Horizontal distance from chair spine to front limit line (per row)", GH_ParamAccess.list);
         }
 
         protected override void SolveInstance(IGH_DataAccess DA)
@@ -41,18 +41,21 @@ namespace Owl.Grasshopper.Components.Solvers
             DA.GetDataList(1, audiences);
             DA.GetDataList(2, offsets);
 
-            // Output Gaps
+            // Output Gaps directly from the solver
             if (tribune.Gaps != null)
             {
                 DA.SetDataList(0, tribune.Gaps);
             }
 
-            // Compute R2FL
-            if (audiences.Count > 0 && tribune.RowPoints != null)
+            // Compute R2FL: horizontal distance from chair spine (SecRowSpine)
+            // to the front limit line for each row.
+            // SecRowSpine already accounts for railing presence/absence
+            // (when no railing, spine is shifted to prevHBL position).
+            // R2FL = SecFL + offset, measured from the spine point.
+            if (audiences.Count > 0 && tribune.SecRowSpine != null && tribune.SecRowSpine.Count > 0)
             {
                 var r2fl = new List<double>();
-                int rowCount = tribune.RowPoints.Count;
-                var toggles = tribune.RailingToggles;
+                int rowCount = tribune.SecRowSpine.Count;
 
                 for (int i = 0; i < rowCount; i++)
                 {
@@ -69,29 +72,9 @@ namespace Owl.Grasshopper.Components.Solvers
                         offset = offsets[i % offsets.Count];
                     }
 
-                    bool hasRailing = true;
-                    if (toggles != null && toggles.Count > i)
-                    {
-                        hasRailing = toggles[i];
-                    }
-
-                    if (hasRailing)
-                    {
-                        r2fl.Add(currentAudience.SecFL + offset);
-                    }
-                    else
-                    {
-                        if (i > 0)
-                        {
-                            AudienceSetup prevAudience = audiences[(i - 1) % audiences.Count];
-                            double prevHardBack = prevAudience != null ? prevAudience.SecHBL : 0;
-                            r2fl.Add(prevHardBack + currentAudience.SecFL + offset);
-                        }
-                        else
-                        {
-                            r2fl.Add(currentAudience.SecFL + offset);
-                        }
-                    }
+                    // The front limit distance is purely the audience property + offset,
+                    // measured forward from the spine point (which is the chair origin).
+                    r2fl.Add(currentAudience.SecFL + offset);
                 }
                 DA.SetDataList(1, r2fl);
             }

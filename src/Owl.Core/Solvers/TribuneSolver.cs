@@ -181,7 +181,7 @@ namespace Owl.Core.Solvers
             if (tribPts.Count > 1)
                 secTribune = new Polyline(tribPts).ToNurbsCurve();
 
-            serializedTribune = new SerializedTribune(rowPoints, gaps, railingToggles: resolvedToggles);
+            serializedTribune = new SerializedTribune(rowPoints, gaps, railingToggles: resolvedToggles, secRowSpine: secRowSpine);
 
             // -----------------------------
             // B) STAIRS PROFILE
@@ -255,28 +255,26 @@ namespace Owl.Core.Solvers
                     showRailing = railingToggles[r % railingToggles.Count];
                 }
 
-                double backOffset = _railings.RailWidth;
-
-                if (!showRailing)
+                double referenceX;
+                if (showRailing || r == 0)
                 {
+                    // With railing (or first row): measure from railing inner face
+                    referenceX = (r == 0) ? _railings.RailWidth : prevRiserX + _railings.RailWidth;
+                }
+                else
+                {
+                    // No railing: measure from the previous row's hard back limit
+                    double prevRowX = rowPoints[r - 1].X; // previous row railing inner face
+                    double prevHBL = 0;
                     if (audiences != null && audiences.Count > 0)
                     {
-                        var aud = audiences[r % audiences.Count];
-                        if (aud != null)
-                        {
-                            backOffset = aud.SecHBL;
-                        }
+                        var prevAud = audiences[(r - 1) % audiences.Count];
+                        if (prevAud != null) prevHBL = prevAud.SecHBL;
                     }
-                    else
-                    {
-                        backOffset = 0.0;
-                    }
+                    referenceX = prevRowX + prevHBL;
                 }
 
-                double railInnerFace = prevRiserX + backOffset;
-                if (r == 0) railInnerFace = 0;
-
-                double thisGap = startX - railInnerFace;
+                double thisGap = startX - referenceX;
                 gaps.Add(thisGap);
 
                 currentBaseX += getRowWidth(r + 1);
