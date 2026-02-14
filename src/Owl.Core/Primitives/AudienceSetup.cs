@@ -16,6 +16,9 @@ namespace Owl.Core.Primitives
         public GeometryBase PlanGeo { get; set; }
         public Point3d PlanOriginPt { get; set; } = Point3d.Origin;
         public double ChairWidth { get; set; } = 55.0;
+        public System.Guid PlanChairBlockId { get; set; } = System.Guid.Empty;
+        public string PlanChairBlockName { get; set; } = string.Empty;
+        public List<GeometryBase> PlanGeometry { get; set; } = new List<GeometryBase>();
 
         public AudienceSetup()
         {
@@ -37,7 +40,7 @@ namespace Owl.Core.Primitives
 
         public AudienceSetup Duplicate()
         {
-            return new AudienceSetup(
+            var dup = new AudienceSetup(
                 EyeLocation,
                 Origin,
                 Chairs?.Select(c => c.DuplicateCurve()).ToList(),
@@ -48,8 +51,36 @@ namespace Owl.Core.Primitives
             {
                 PlanGeo = PlanGeo?.Duplicate(),
                 PlanOriginPt = PlanOriginPt,
-                ChairWidth = ChairWidth
+                ChairWidth = ChairWidth,
+                PlanChairBlockId = PlanChairBlockId,
+                PlanChairBlockName = PlanChairBlockName,
+                PlanGeometry = PlanGeometry?.Select(g => g.Duplicate()).ToList()
             };
+            return dup;
+        }
+
+        public string ToJson()
+        {
+             var options = new System.Text.Json.JsonSerializerOptions { WriteIndented = true };
+             // Create a lightweight DTO or serialize directly if valid
+             // Using an anonymous object to control structure matching requirements
+             var dto = new 
+             {
+                SchemaVersion = "1.0",
+                EyeLocation = $"{EyeLocation.X},{EyeLocation.Y},{EyeLocation.Z}",
+                Origin = $"{Origin.X},{Origin.Y},{Origin.Z}",
+                FrontLimit = FrontLimit,
+                HardBackLimit = HardBackLimit,
+                SoftBackLimit = SoftBackLimit,
+                PlanSetup = new 
+                {
+                    BlockId = PlanChairBlockId.ToString(),
+                    BlockName = PlanChairBlockName,
+                    ChairWidth = ChairWidth,
+                    PlanOriginOverride = $"{PlanOriginPt.X},{PlanOriginPt.Y},{PlanOriginPt.Z}"
+                }
+             };
+             return System.Text.Json.JsonSerializer.Serialize(dto, options);
         }
     }
 }

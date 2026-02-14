@@ -19,6 +19,7 @@ namespace Owl.Grasshopper.Components.Setup
         {
             pManager.AddPointParameter("Origin", "Origin", "Origin of the plan that corresponds to the section origin", GH_ParamAccess.item, Point3d.Origin);
             pManager.AddCurveParameter("TribuneBoundary", "Boundary", "Closed polygon representing the tribune boundary in plan", GH_ParamAccess.item);
+            pManager.AddCurveParameter("AisleBoundaries", "Aisles", "List of closed planar polygons/curves for aisles", GH_ParamAccess.list);
             pManager.AddCurveParameter("TunnelBoundary", "Tunnel", "Closed polygon representing the tunnel boundary (void) in plan", GH_ParamAccess.item);
             
             pManager[2].Optional = true;
@@ -27,7 +28,7 @@ namespace Owl.Grasshopper.Components.Setup
 
         protected override void RegisterOutputParams(GH_Component.GH_OutputParamManager pManager)
         {
-            pManager.AddGenericParameter("PlanSetup", "Plan", "Serialized Plan Setup Object", GH_ParamAccess.item);
+            pManager.AddTextParameter("SerializedPlanSetup", "SPlan", "Serialized Plan Setup JSON", GH_ParamAccess.item);
         }
 
         protected override void SolveInstance(IGH_DataAccess DA)
@@ -43,7 +44,7 @@ namespace Owl.Grasshopper.Components.Setup
             DA.GetData(3, ref tunnel);
 
             var setup = new PlanSetup(origin, boundary, aisles, tunnel);
-            DA.SetData(0, setup);
+            DA.SetData(0, setup.ToJson());
         }
 
         protected override System.Drawing.Bitmap Icon

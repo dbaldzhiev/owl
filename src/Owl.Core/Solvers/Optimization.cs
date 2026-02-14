@@ -55,7 +55,8 @@ namespace Owl.Core.Solvers
                 out List<Line> sightlines,
                 out _, // limitLines
                 out Brep projectorCone,
-                out _, // placedChairs
+                out _, // sectionChairs
+                out _, // planChairs
                 out _, // planTribune
                 out _, // planRailings
                 out _  // planStairs

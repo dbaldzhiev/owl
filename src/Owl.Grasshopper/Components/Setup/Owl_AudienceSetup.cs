@@ -23,7 +23,7 @@ namespace Owl.Grasshopper.Components.Setup
             pManager.AddNumberParameter("FrontLimit", "FLimit", "Front limit (default 45)", GH_ParamAccess.item, 45.0);
             pManager.AddNumberParameter("HardBackLimit", "HBLimit", "Hard-back limit (default 182.5)", GH_ParamAccess.item, 182.5);
             pManager.AddNumberParameter("SoftBackLimit", "SBLimit", "Soft-back limit (default 200)", GH_ParamAccess.item, 200.0);
-            pManager.AddGeometryParameter("PlanGeo", "PGeo", "Plan geometry of the chair", GH_ParamAccess.item);
+            pManager.AddGenericParameter("PlanChairGeometry", "PGeo", "Plan Geometry (Curves/Breps) for the chair to be blocked", GH_ParamAccess.list);
             pManager.AddPointParameter("PlanOriginPt", "POrigin", "Origin point in plan (center of chair)", GH_ParamAccess.item, Point3d.Origin);
             pManager.AddNumberParameter("ChairWidth", "Width", "Width of the chair for distribution", GH_ParamAccess.item, 55.0);
             
@@ -46,7 +46,7 @@ namespace Owl.Grasshopper.Components.Setup
             double flimit = 45.0;
             double hblimit = 182.5;
             double sblimit = 200.0;
-            GeometryBase planGeo = null;
+            List<object> planGeoObjs = new List<object>();
             Point3d planOrigin = Point3d.Origin;
             double chairWidth = 55.0;
 
@@ -56,15 +56,47 @@ namespace Owl.Grasshopper.Components.Setup
             DA.GetData(3, ref flimit);
             DA.GetData(4, ref hblimit);
             DA.GetData(5, ref sblimit);
-            DA.GetData(6, ref planGeo);
+            DA.GetDataList(6, planGeoObjs);
             DA.GetData(7, ref planOrigin);
             DA.GetData(8, ref chairWidth);
 
+            if (chairWidth <= 0)
+            {
+                AddRuntimeMessage(GH_RuntimeMessageLevel.Error, "ChairWidth must be > 0");
+                return;
+            }
+
+            List<GeometryBase> planGeoList = new List<GeometryBase>();
+            if (planGeoObjs != null)
+            {
+                foreach(var obj in planGeoObjs)
+                {
+                    if (obj == null) continue;
+                    
+                    if (obj is GeometryBase geo)
+                    {
+                        planGeoList.Add(geo.Duplicate());
+                    }
+                    else if (obj is global::Grasshopper.Kernel.Types.IGH_GeometricGoo goo)
+                    {
+                         // Extract geometry from GH types
+                         if (goo.ScriptVariable() is GeometryBase g)
+                             planGeoList.Add(g.Duplicate());
+                    }
+                    else if (obj is global::Grasshopper.Kernel.Types.GH_ObjectWrapper wrapper)
+                    {
+                         if (wrapper.Value is GeometryBase g)
+                             planGeoList.Add(g.Duplicate());
+                    }
+                }
+            }
+
             var setup = new AudienceSetup(eye, origin, chairs, flimit, hblimit, sblimit)
             {
-                PlanGeo = planGeo,
+                PlanGeo = null, 
                 PlanOriginPt = planOrigin,
-                ChairWidth = chairWidth
+                ChairWidth = chairWidth,
+                PlanGeometry = planGeoList
             };
             DA.SetData(0, setup);
         }

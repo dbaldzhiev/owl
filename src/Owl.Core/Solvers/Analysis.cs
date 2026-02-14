@@ -18,7 +18,8 @@ namespace Owl.Core.Solvers
             out List<Line> sightlines,
             out List<List<Line>> limitLines,
             out Brep projectorCone,
-            out List<List<GeometryBase>> placedChairs,
+            out List<List<GeometryBase>> sectionChairs,
+            out List<List<GeometryBase>> planChairs,
             out List<Curve> planTribuneLines,
             out List<Curve> planRailingLines,
             out List<Curve> planStairLines)
@@ -26,7 +27,8 @@ namespace Owl.Core.Solvers
             sightlines = new List<Line>();
             limitLines = new List<List<Line>>();
             projectorCone = null;
-            placedChairs = new List<List<GeometryBase>>();
+            sectionChairs = new List<List<GeometryBase>>();
+            planChairs = new List<List<GeometryBase>>();
             planTribuneLines = new List<Curve>();
             planRailingLines = new List<Curve>();
             planStairLines = new List<Curve>();
@@ -34,7 +36,7 @@ namespace Owl.Core.Solvers
             if (audiences == null || audiences.Count == 0 || serializedTribune == null)
                 return;
 
-            // 1. Determine Screen Extents (Top/Bottom)
+            // 1. Determine Screen Extents
             Point3d screenBottom = Point3d.Unset;
             Point3d screenTop = Point3d.Unset;
             bool hasScreen = false;
@@ -49,7 +51,7 @@ namespace Owl.Core.Solvers
                 hasScreen = true;
             }
 
-            // 2. Generate Eye Points & Chairs
+            // 2. Main Loop: Rows
             if (serializedTribune.RowPoints != null)
             {
                 for (int i = 0; i < serializedTribune.RowPoints.Count; i++)
@@ -57,10 +59,12 @@ namespace Owl.Core.Solvers
                     AudienceSetup currentAudience = audiences[i % audiences.Count];
                     if (currentAudience == null) continue;
 
-                    // Vector from Chair Origin to Eye
+                    Point3d rowPoint = serializedTribune.RowPoints[i];
+                    
+                    // --- SECTION LOGIC ---
+                    
                     Vector3d baseEyeOffset = currentAudience.EyeLocation - currentAudience.Origin;
 
-                    Point3d rowPoint = serializedTribune.RowPoints[i];
                     double xOffsetVal = 0;
                     if (audienceOffsets != null && audienceOffsets.Count > 0)
                     {
@@ -74,25 +78,21 @@ namespace Owl.Core.Solvers
                     if (serializedTribune.Flip)
                     {
                         currentEyeOffset.X = -currentEyeOffset.X;
-                        // Mirror across YZ plane (Normal = X) at audience.Origin
                         mirrorXform = Transform.Mirror(new Plane(currentAudience.Origin, Vector3d.YAxis, Vector3d.ZAxis));
                         xOffsetVec.X = -xOffsetVec.X;
                     }
 
-                    // Eye Point
                     Point3d eye = rowPoint + currentEyeOffset;
 
-                    // Sightlines
                     if (hasScreen)
                     {
                         sightlines.Add(new Line(eye, screenBottom));
                     }
 
-                    // Limit Lines (Vertical at X=45, 182.5, 200 relative to rowPoint)
+                    // Limit Lines
                     var rowLimits = new List<Line>();
                     double z0 = rowPoint.Z;
                     double z1 = rowPoint.Z + 50;
-
                     double xF = rowPoint.X + (serializedTribune.Flip ? -currentAudience.FrontLimit : currentAudience.FrontLimit) + (serializedTribune.Flip ? -xOffsetVal : xOffsetVal);
                     double xHB = rowPoint.X + (serializedTribune.Flip ? -currentAudience.HardBackLimit : currentAudience.HardBackLimit) + (serializedTribune.Flip ? -xOffsetVal : xOffsetVal);
                     double xSB = rowPoint.X + (serializedTribune.Flip ? -currentAudience.SoftBackLimit : currentAudience.SoftBackLimit) + (serializedTribune.Flip ? -xOffsetVal : xOffsetVal);
@@ -101,74 +101,10 @@ namespace Owl.Core.Solvers
                     rowLimits.Add(new Line(new Point3d(xHB, 0, z0), new Point3d(xHB, 0, z1)));
                     rowLimits.Add(new Line(new Point3d(xSB, 0, z0), new Point3d(xSB, 0, z1)));
                     limitLines.Add(rowLimits);
-
-                    // Place Chairs (Plan Distribution)
-                    var rowChairs = new List<GeometryBase>();
-
-                    if (plan != null && plan.TribuneBoundary != null)
-                    {
-                        // Calculate row line in plan
-                        // Assuming Section X corresponds to Plan X relative to plan.Origin
-                        double planX = rowPoint.X + plan.Origin.X;
-                        
-                        // We need to intersect a line at planX with the boundary
-                        // However, a simpler approach if we assume aligned plan:
-                        // Find the Y range of the boundary at this X
-                        
-                        var bBox = plan.TribuneBoundary.GetBoundingBox(true);
-                        Line rowLine = new Line(new Point3d(planX, bBox.Min.Y - 1000, 0), new Point3d(planX, bBox.Max.Y + 1000, 0));
-                        
-                        // 1. Tribune Lines: Boundary - Tunnel
-                        var tribSegments = GetClippedSegments(rowLine, new List<Curve> { plan.TribuneBoundary }, plan.TunnelBoundary != null ? new List<Curve> { plan.TunnelBoundary } : null);
-                        planTribuneLines.AddRange(tribSegments.Select(s => s.ToNurbsCurve()));
-                        
-                        // 2. Stair Lines: Aisles - Tunnel
-                        List<Line> stairSegments = new List<Line>();
-                        if (plan.AisleBoundaries != null && plan.AisleBoundaries.Count > 0)
-                        {
-                            stairSegments = GetClippedSegments(rowLine, plan.AisleBoundaries, plan.TunnelBoundary != null ? new List<Curve> { plan.TunnelBoundary } : null);
-                            planStairLines.AddRange(stairSegments.Select(s => s.ToNurbsCurve()));
-                        }
-                        
-                        // 3. Railing/Chair Lines: Boundary - Tunnel - Aisles
-                        // Logic: Start with Tribune segments, subtract Aisles
-                        var railSegments = Subtract_intervalsFromSegments(tribSegments, plan.AisleBoundaries, rowLine);
-                        planRailingLines.AddRange(railSegments.Select(s => s.ToNurbsCurve()));
-
-                        // Distribute Chairs
-                        if (currentAudience.PlanGeo != null)
-                        {
-                            foreach (var line in railSegments)
-                            {
-                                double length = line.Length;
-                                int count = (int)Math.Floor(length / currentAudience.ChairWidth);
-                                if (count > 0)
-                                {
-                                    double spacing = length / count;
-                                    for (int c = 0; c < count; c++)
-                                    {
-                                        double t = (c + 0.5) / count;
-                                        Point3d chairPos = line.PointAt(t);
-                                        chairPos.Z = rowPoint.Z;
-
-                                        Transform xform;
-                                        // If PlanGeo is instance definition logic, origin matters differently?
-                                        // User: "in audience setup the input for Pgeo needs to be a block definition. if it is a block definition it is dubious if you even need an origin because you can use the origin of the block"
-                                        // We treat PlanGeo as source geometry. If it's a block logic, the source geometry IS at the definition origin.
-                                        // So we just move from (0,0,0) (or PlanOriginPt if provided) to target.
-                                        
-                                        var move = chairPos - currentAudience.PlanOriginPt; // If PlanOriginPt is 0,0,0, this works directly.
-                                        xform = Transform.Translation(move);
-                                        
-                                        var dup = currentAudience.PlanGeo.Duplicate();
-                                        dup.Transform(xform);
-                                        rowChairs.Add(dup);
-                                    }
-                                }
-                            }
-                        }
-                    }
-                    else if (currentAudience.Chairs != null) // Fallback Section Distribution
+                    
+                    // Place Section Chairs (ALWAYS)
+                    var rowSectionChairs = new List<GeometryBase>();
+                    if (currentAudience.Chairs != null)
                     {
                         Vector3d move = (rowPoint - currentAudience.Origin) + xOffsetVec;
                         var moveXform = Transform.Translation(move);
@@ -182,14 +118,97 @@ namespace Owl.Core.Solvers
                                 dup.Transform(mirrorXform);
                             }
                             dup.Transform(moveXform);
-                            rowChairs.Add(dup);
+                            rowSectionChairs.Add(dup);
                         }
                     }
-                    placedChairs.Add(rowChairs);
+                    sectionChairs.Add(rowSectionChairs);
+
+                    // --- PLAN LOGIC ---
+                    
+                    var rowPlanChairs = new List<GeometryBase>();
+                    if (plan != null && plan.TribuneBoundary != null)
+                    {
+                        // Mapping Section Space to Plan Space
+                        // Section X -> Plan X
+                        // PlanX = PlanOrigin.X + (SectionPoint.X - SectionOrigin.X)
+                        
+                        double relX = rowPoint.X - serializedTribune.Origin.X;
+                        double planX = plan.Origin.X + relX;
+                        var bBox = plan.TribuneBoundary.GetBoundingBox(true);
+                        double yMin = bBox.Min.Y - 10000;
+                        double yMax = bBox.Max.Y + 10000;
+                        
+                        Line rowLine = new Line(new Point3d(planX, yMin, 0), new Point3d(planX, yMax, 0));
+                        
+                        List<Curve> tunnelEx = plan.TunnelBoundary != null ? new List<Curve> { plan.TunnelBoundary } : null;
+                        List<Curve> aisleEx = plan.AisleBoundaries;
+                        List<Curve> allEx = new List<Curve>();
+                        if (tunnelEx != null) allEx.AddRange(tunnelEx);
+                        if (aisleEx != null) allEx.AddRange(aisleEx);
+                        
+                        var tribSegments = GetClippedSegments(rowLine, new List<Curve> { plan.TribuneBoundary }, tunnelEx);
+                        planTribuneLines.AddRange(tribSegments.Select(s => s.ToNurbsCurve()));
+                        
+                        if (aisleEx != null && aisleEx.Count > 0)
+                        {
+                            var stairSegments = GetClippedSegments(rowLine, aisleEx, tunnelEx);
+                            planStairLines.AddRange(stairSegments.Select(s => s.ToNurbsCurve()));
+                        }
+                        
+                        var seatSegments = GetClippedSegments(rowLine, new List<Curve> { plan.TribuneBoundary }, allEx);
+                        planRailingLines.AddRange(seatSegments.Select(s => s.ToNurbsCurve()));
+
+                        // Distribute Chairs
+                        if (currentAudience.ChairWidth > 0 && 
+                           (currentAudience.PlanChairBlockId != Guid.Empty || (currentAudience.PlanGeometry != null && currentAudience.PlanGeometry.Count > 0)))
+                        {
+                            foreach (var segment in seatSegments)
+                            {
+                                double len = segment.Length;
+                                int n = (int)Math.Floor(len / currentAudience.ChairWidth);
+                                
+                                if (n > 0)
+                                {
+                                    double totalChairWidth = n * currentAudience.ChairWidth;
+                                    double margin = (len - totalChairWidth) / 2.0;
+                                    
+                                    Vector3d dir = segment.Direction;
+                                    dir.Unitize();
+                                    
+                                    Point3d startPt = segment.From + dir * (margin + currentAudience.ChairWidth / 2.0);
+                                    
+                                    for (int c = 0; c < n; c++)
+                                    {
+                                        Point3d pt = startPt + dir * (c * currentAudience.ChairWidth);
+                                        // Align center
+                                        
+                                        Transform xform = Transform.Translation(pt - currentAudience.PlanOriginPt); // Shift origin to pt
+                                        
+                                        if (currentAudience.PlanChairBlockId != Guid.Empty)
+                                        {
+                                            var instance = new InstanceReferenceGeometry(currentAudience.PlanChairBlockId, xform);
+                                            rowPlanChairs.Add(instance);
+                                        }
+                                        else if (currentAudience.PlanGeometry != null)
+                                        {
+                                            // Copy Geometry
+                                            foreach(var pg in currentAudience.PlanGeometry)
+                                            {
+                                                var dup = pg.Duplicate();
+                                                dup.Transform(xform);
+                                                rowPlanChairs.Add(dup);
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    planChairs.Add(rowPlanChairs);
                 }
             }
-
-            // 3. Generate Projector Cone
+            
+            // ... Projector Cone ...
             if (hasScreen && projector != null)
             {
                 var conePts = new List<Point3d>
@@ -197,7 +216,7 @@ namespace Owl.Core.Solvers
                     projector.Location,
                     screenTop,
                     screenBottom,
-                    projector.Location // Close loop
+                    projector.Location 
                 };
                 
                 var polyline = new Polyline(conePts);
@@ -254,25 +273,20 @@ namespace Owl.Core.Solvers
                              foreach (var inc in includedIntervals)
                              {
                                  // Interval subtraction: inc - ex
-                                 // Cases:
-                                 // 1. No overlap
-                                 // 2. ex inside inc -> split
-                                 // 3. ex overlaps start/end -> clip
-                                 // 4. ex covers inc -> remove
                                  
                                  double t0 = inc.T0;
                                  double t1 = inc.T1;
                                  double e0 = exInterval.T0;
                                  double e1 = exInterval.T1;
                                  
-                                 if (e1 <= t0 || e0 >= t1) // No overlap
+                                 if (e1 <= t0 + 0.001 || e0 >= t1 - 0.001) // No overlap or touch
                                  {
                                      nextIncluded.Add(inc);
                                  }
                                  else
                                  {
-                                     if (e0 > t0) nextIncluded.Add(new Interval(t0, e0));
-                                     if (e1 < t1) nextIncluded.Add(new Interval(e1, t1));
+                                     if (e0 > t0 + 0.001) nextIncluded.Add(new Interval(t0, e0));
+                                     if (e1 < t1 - 0.001) nextIncluded.Add(new Interval(e1, t1));
                                  }
                              }
                              includedIntervals = nextIncluded;
@@ -304,7 +318,7 @@ namespace Owl.Core.Solvers
             for (int i = 1; i < sorted.Count; i++)
             {
                 var next = sorted[i];
-                if (next.T0 <= current.T1) // Overlap or adjacent
+                if (next.T0 <= current.T1 + 0.001) // Overlap or adjacent
                 {
                     current = new Interval(current.T0, Math.Max(current.T1, next.T1));
                 }
@@ -316,64 +330,6 @@ namespace Owl.Core.Solvers
             }
             merged.Add(current);
             return merged;
-        }
-
-        private static List<Line> Subtract_intervalsFromSegments(List<Line> segments, List<Curve> exclusions, Line baseLine)
-        {
-             // Similar logic, treat segments as intervals on baseLine and subtract
-             // Convert lines to intervals
-             List<Interval> intervals = new List<Interval>();
-             foreach(var seg in segments)
-             {
-                 double t0 = baseLine.ClosestParameter(seg.From);
-                 double t1 = baseLine.ClosestParameter(seg.To);
-                 intervals.Add(new Interval(Math.Min(t0, t1), Math.Max(t0, t1)));
-             }
-             
-             if (exclusions != null)
-             {
-                foreach (var ex in exclusions)
-                {
-                    var intersects = Rhino.Geometry.Intersect.Intersection.CurveLine(ex, baseLine, 0.001, 0.001);
-                    if (intersects != null && intersects.Count >= 2)
-                    {
-                         var ts = intersects.Select(i => i.ParameterB).OrderBy(t => t).ToList();
-                         for (int k = 0; k < ts.Count - 1; k += 2)
-                         {
-                             var exInterval = new Interval(ts[k], ts[k+1]);
-                             List<Interval> nextIntervals = new List<Interval>();
-                             foreach (var inc in intervals)
-                             {
-                                 double t0 = inc.T0;
-                                 double t1 = inc.T1;
-                                 double e0 = exInterval.T0;
-                                 double e1 = exInterval.T1;
-                                 
-                                 if (e1 <= t0 || e0 >= t1)
-                                 {
-                                     nextIntervals.Add(inc);
-                                 }
-                                 else
-                                 {
-                                     if (e0 > t0) nextIntervals.Add(new Interval(t0, e0));
-                                     if (e1 < t1) nextIntervals.Add(new Interval(e1, t1));
-                                 }
-                             }
-                             intervals = nextIntervals;
-                         }
-                    }
-                }
-             }
-             
-             var result = new List<Line>();
-             foreach (var interval in intervals)
-             {
-                if (interval.Length > 0.001)
-                {
-                    result.Add(new Line(baseLine.PointAt(interval.T0), baseLine.PointAt(interval.T1)));
-                }
-             }
-             return result;
         }
     }
 }

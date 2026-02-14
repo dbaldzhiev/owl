@@ -134,7 +134,7 @@ namespace Owl.Core.Solvers
             if (tribPts.Count > 1)
                 tribuneProfile = new Polyline(tribPts).ToNurbsCurve();
             
-            serializedTribune = new SerializedTribune(rowPoints, gaps);
+            serializedTribune = new SerializedTribune(rowPoints, gaps, false, null, null, origin);
 
             // -----------------------------
             // B) STAIRS PROFILE
@@ -306,6 +306,10 @@ namespace Owl.Core.Solvers
                 }
                 serializedTribune.RowPoints = newRowPoints;
                 serializedTribune.Flip = true;
+                
+                var newOrigin = serializedTribune.Origin;
+                newOrigin.Transform(mirror);
+                serializedTribune.Origin = newOrigin;
             }
 
             // -----------------------------
@@ -346,6 +350,29 @@ namespace Owl.Core.Solvers
                     movedRowPoints.Add(p);
                 }
                 serializedTribune.RowPoints = movedRowPoints;
+                
+                var newOrigin = serializedTribune.Origin;
+                // Origin was already passed as 'origin' argument to constructor, so it matches the transformation target?
+                // Wait, 'origin' arg is the target origin. 
+                // The geometry is built at (0,0) then moved to 'origin'.
+                // So the final origin IS 'origin'.
+                // If we passed 'origin' to constructor, it is already correct.
+                // WE DO NOT NEED TO TRANSFORM IT AGAIN if it was set to 'origin' initially.
+                // However, the Move logic here applies the transform to the points.
+                // If we construct STribune with 'origin', it effectively sets the property.
+                // But the points were built at 0,0 then moved. 
+                // Let's check logic order.
+                // 1. Build at 0,0.
+                // 2. Create STrib(pts, ..., origin). -> Origin property = origin.
+                // 3. Move points by Translation(origin).
+                // So STrib.Origin is 'origin'. Points are at 'origin'.
+                // Relative = Point - Origin.
+                // (0+Origin) - Origin = 0. Correct.
+                
+                // EXCEPT: if 'origin' != 0, we move the points.
+                // The constructor call was `new SerializedTribune(..., origin)`.
+                // So STrib.Origin is ALREADY set to the target origin.
+                // We don't need to transform it.
             }
         }
     }
