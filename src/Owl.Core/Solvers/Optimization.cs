@@ -51,10 +51,14 @@ namespace Owl.Core.Solvers
                 screen,
                 projector,
                 audienceOffsets,
+                null, // PlanSetup
                 out List<Line> sightlines,
                 out _, // limitLines
                 out Brep projectorCone,
-                out _ // placedChairs
+                out _, // placedChairs
+                out _, // planTribune
+                out _, // planRailings
+                out _  // planStairs
             );
 
             // 3. Calculate Fitness

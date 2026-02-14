@@ -66,7 +66,7 @@ namespace Owl.Grasshopper.Components.Optimization
             DA.GetDataList(8, railingToggles);
             DA.GetDataList(9, audienceOffsets);
 
-            double fitness = Optimization.Evaluate(
+            double fitness = Owl.Core.Solvers.Optimization.Evaluate(
                 tribune, 
                 stairs, 
                 railings, 

@@ -13,6 +13,10 @@ namespace Owl.Core.Primitives
         public double HardBackLimit { get; set; }
         public double SoftBackLimit { get; set; }
 
+        public GeometryBase PlanGeo { get; set; }
+        public Point3d PlanOriginPt { get; set; } = Point3d.Origin;
+        public double ChairWidth { get; set; } = 55.0;
+
         public AudienceSetup()
         {
             Chairs = new List<Curve>();
@@ -40,7 +44,12 @@ namespace Owl.Core.Primitives
                 FrontLimit,
                 HardBackLimit,
                 SoftBackLimit
-            );
+            )
+            {
+                PlanGeo = PlanGeo?.Duplicate(),
+                PlanOriginPt = PlanOriginPt,
+                ChairWidth = ChairWidth
+            };
         }
     }
 }

@@ -9,6 +9,7 @@ namespace Owl.Core.Primitives
         public List<AudienceSetup> Audiences { get; set; }
         public List<Line> Sightlines { get; set; }
         public List<double> Offsets { get; set; }
+        public PlanSetup Plan { get; set; }
 
         public SerializedAnalysis()
         {
@@ -17,12 +18,13 @@ namespace Owl.Core.Primitives
             Offsets = new List<double>();
         }
 
-        public SerializedAnalysis(SerializedTribune tribune, List<AudienceSetup> audiences, List<Line> sightlines, List<double> offsets = null)
+        public SerializedAnalysis(SerializedTribune tribune, List<AudienceSetup> audiences, List<Line> sightlines, List<double> offsets = null, PlanSetup plan = null)
         {
             Tribune = tribune;
             Audiences = audiences ?? new List<AudienceSetup>();
             Sightlines = sightlines ?? new List<Line>();
             Offsets = offsets ?? new List<double>();
+            Plan = plan;
         }
     }
 }

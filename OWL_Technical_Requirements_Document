@@ -1,113 +1,125 @@
 # OWL — Technical Requirements Document (TRD)
 
-Target Platform: Rhino 8 / Grasshopper (Python 3 Script)
-Language: Python 3
-API: RhinoCommon
-Domain: Auditoriums, Cinemas, Grandstands, Tribune Renovation
+Target Platform: Rhino 8 / Grasshopper (.NET 7)
+Language: C# (.NET 7)
+API: RhinoCommon, Grasshopper SDK
+Domain: Auditoriums, Cinemas, Grandstands, Tribune Renovation, Plan Distribution
 
 ---
 
 ## 0. Core Design Principle
-The plugin is structured as a single Python script (`tribune.py`) containing modular classes that mimic a node-based workflow.
+The project is a **Rhino 8 Grasshopper Plugin** structured into two main projects:
+1.  `Owl.Core`: Pure C# logic, primitives, and solvers (Geometry, Analysis). Reference-free from Grasshopper (except where unavoidable for types like Bitmap, though mostly minimized).
+2.  `Owl.Grasshopper`: Grasshopper component implementations, UI logic, and data conversion.
 
-Data flows: `Setup Objects` -> `Solver` -> `Geometry/Data Profiles`.
+Data flows: `Setup Primitives` -> `Solvers (Core)` -> `Grasshopper DataTrees/Geometry`.
 
 ---
 
-## 1. Components & Data Structures
+## 1. Primitives (Owl.Core)
 
-### 1.1 Tribune Setup
-**Component Name:** `tribune`
-**Purpose:** Define the base dimensions and stepping logic of the tribune.
+### 1.1 Tribune Setup (`TribuneSetup`)
+**Purpose:** Define the base dimensions and stepping logic of the tribune section.
 
-**Inputs:**
-- `rows` (int): Number of elevated rows.
-- `row_width` (float): Width/Depth of a single row module.
-- `elev` (list[int]): List of step counts per row (e.g., [2, 2, 2] means each row rises by 2 steps).
+**Properties:**
+- `Rows` (int): Number of elevated rows.
+- `RowDepth` (double): Depth of a single row module.
+- `RowRiseSteps` (List<int>): Steps per row (e.g., [2, 2] means each row rises by 2 steps).
+- `StartElevation` (double): Base elevation.
 
-**Outputs:**
-- `tribune_setup`: A data object containing the above configuration.
+### 1.2 Stair Setup (`StairSetup`)
+**Purpose:** Define dimensions of steps (risers/treads).
 
-### 1.2 Stairs Setup
-**Component Name:** `stairs`
-**Purpose:** Define the dimensions of the steps (risers and treads).
+**Properties:**
+- `RiserHeight` (double)
+- `TreadDepth` (double)
 
-**Inputs:**
-- `tread_h` (float): Height of one riser.
-- `tread_w` (float): Depth of one tread step.
-
-**Outputs:**
-- `stair_setup`: A data object containing step dimensions.
-
-### 1.3 Railings Setup
-**Component Name:** `railings`
+### 1.3 Railing Setup (`RailingSetup`)
 **Purpose:** Define railing dimensions.
 
-**Inputs:**
-- `rail_h` (float): Height of the railing above the nose of the tread.
-- `rail_w` (float): Width/Thickness of the railing.
+**Properties:**
+- `Height` (double): Height from nosing.
+- `Thickness` (double)
 
-**Outputs:**
-- `rail_setup`: A data object containing railing dimensions.
+### 1.4 Audience Setup (`AudienceSetup`)
+**Purpose:** Define occupant parameters and chair geometry.
 
-### 1.4 Tribune Solver
-**Component Name:** `tribune_solver`
-**Purpose:** Generate the 3D profile curves based on the setup objects.
+**Properties:**
+- `EyeHeight` (double)
+- `EyeOffset` (double): Horizontal offset from seat back.
+- `PlanGeo` (GeometryBase): **[NEW]** 3D geometry (Block/Mesh/Brep) representing the chair in plan.
+- `PlanOriginPt` (Point3d): **[NEW]** Insertion point for the `PlanGeo`.
+- `ChairWidth` (double): **[NEW]** Width of the chair for distribution.
 
-**Inputs:**
-- `tribune_setup`
-- `stair_setup`
-- `rail_setup`
+### 1.5 Plan Setup (`PlanSetup`) **[NEW]**
+**Purpose:** Define plan-view boundaries and exclusions.
 
-**Outputs:**
-- `tribune_profile` (Curve): The section profile of the seating area.
-- `stairs_profile` (Curve): The section profile of the aisle/stairs.
-- `railings_profile` (List[Curve]): Profiles for each railing.
-- `gaps` (float): Free gap calculation (e.g., between railing and stair nosing).
-
----
-
-## 2. Placeholder Components
-
-### 2.1 Audience
-**Purpose:** Define occupant parameters (eye height, head height).
-**Status:** Placeholder.
-
-### 2.2 Screen
-**Purpose:** Define cinema screen geometry (width, height, curvature).
-**Status:** Placeholder.
-
-### 2.3 Projector
-**Purpose:** Define projector location and cone.
-**Status:** Placeholder.
-
-### 2.4 Analysis
-**Purpose:** Calculate C-values and sightlines.
-**Status:** Placeholder.
+**Properties:**
+- `Origin` (Point3d): Anchor point matching the section origin.
+- `TribuneBoundary` (Curve): Closed loop defining the seating area.
+- `AisleBoundaries` (List<Curve>): Closed loops defining aisles (voids for chairs, valid for stairs).
+- `TunnelBoundary` (Curve): **[NEW]** Closed loop defining a structural tunnel (void for everything).
 
 ---
 
-## 3. Geometry Logic (Solver)
+## 2. Solvers & Analysis (Owl.Core)
 
-- **Tribune Profile:**
-    - Starts at (0,0,0).
-    - Advances by `row_width`.
-    - Rises by `elev[row] * tread_h`.
-    - Must act as a "Trend" line for the stairs.
+### 2.1 Tribune Solver (`TribuneSolver`)
+**Purpose:** Generate section profile curves.
+**Logic:**
+- Generates `TribuneProfile` (Section).
+- Generates `StairProfile` (Section, typically aligned or offset).
+- Generates `RailingProfiles` (Section).
 
-- **Stairs Profile:**
-    - Typically aligned to the tribune but broken down into `tread_w` and `tread_h` steps.
-    - Start point may need adjustment to align risers correctly with tribune rows.
+### 2.2 Analysis (`Analysis.Calculate`)
+**Purpose:** Core distribution and sightline analysis engine.
 
-- **Railings:**
-    - Placed at every major row riser.
-    - Height `rail_h` measured from the *next* tread elevation.
-    - Thickness `rail_w` extends *inwards* onto the current tread.
+**Inputs:**
+- Section Setups (Tribune, Railing, Stairs)
+- `AudienceSetup` List (Rows)
+- `PlanSetup` (Optional)
+- Screen & Projector Setups
+
+**Logic (Section):**
+- Calculates C-Values (Sightline clearance).
+- Checks projector cone intersections.
+
+**Logic (Plan) [NEW]:**
+- **Trigger**: Active only if `PlanSetup` is provided.
+- **Tribune Lines**: Generated at each row X-coordinate, clipped by `TribuneBoundary` - `TunnelBoundary`.
+- **Railing Lines**: Generated at row edges, subtracted by `AisleBoundaries` and `TunnelBoundary`.
+- **Stair Lines**: Generated at row edges *inside* `AisleBoundaries`, clipped by `TunnelBoundary`.
+- **Chair Distribution**:
+    - Along valid `RailingLines`.
+    - Spaced by `ChairWidth`.
+    - Output as transformed instances of `AudienceSetup.PlanGeo` (Block support).
+
+---
+
+## 3. Grasshopper Components (Owl.Grasshopper)
+
+### 3.1 Setup Components
+- **Owl_TribuneSetup**: Inputs for rows, rise, etc.
+- **Owl_StairSetup**: Inputs for treads/risers.
+- **Owl_RailingSetup**: Inputs for railing dim.
+- **Owl_AudienceSetup**: Extended inputs for Plan Geometry.
+- **Owl_PlanSetup**: **[NEW]** Inputs for Boundary, Aisles, Tunnel.
+
+### 3.2 Solvers
+- **Owl_TribuneSolver**: Visualizes section profiles.
+- **Owl_AudienceDistributor**:
+    - **Inputs**: Setups, PlanSetup.
+    - **Outputs**:
+        - `Sightlines` (Lines)
+        - `PlanTrib` (List<Curve>)
+        - `PlanRail` (List<Curve>)
+        - `PlanStair` (List<Curve>)
+        - `PlanChairs` (Tree<Geometry>) - Block instances or curves.
 
 ---
 
 ## 4. Coding Standards
 
-- **Python 3** features (type hinting, dataclasses) are encouraged.
-- **RhinoCommon** (`import Rhino.Geometry as rg`) is the only geometry library.
-- No external dependencies (pip packages) unless standard library.
+- **C# / .NET 7**: Modern properties, null safety.
+- **Separation of Concerns**: Core logic strictly separated from GH UI.
+- **Immutability**: Setup objects should be treated as immutable configuration carriers.

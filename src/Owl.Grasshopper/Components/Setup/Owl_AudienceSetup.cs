@@ -23,8 +23,14 @@ namespace Owl.Grasshopper.Components.Setup
             pManager.AddNumberParameter("FrontLimit", "FLimit", "Front limit (default 45)", GH_ParamAccess.item, 45.0);
             pManager.AddNumberParameter("HardBackLimit", "HBLimit", "Hard-back limit (default 182.5)", GH_ParamAccess.item, 182.5);
             pManager.AddNumberParameter("SoftBackLimit", "SBLimit", "Soft-back limit (default 200)", GH_ParamAccess.item, 200.0);
+            pManager.AddGeometryParameter("PlanGeo", "PGeo", "Plan geometry of the chair", GH_ParamAccess.item);
+            pManager.AddPointParameter("PlanOriginPt", "POrigin", "Origin point in plan (center of chair)", GH_ParamAccess.item, Point3d.Origin);
+            pManager.AddNumberParameter("ChairWidth", "Width", "Width of the chair for distribution", GH_ParamAccess.item, 55.0);
             
             pManager[2].Optional = true; // Chairs can be optional
+            pManager[6].Optional = true;
+            pManager[7].Optional = true;
+            pManager[8].Optional = true;
         }
 
         protected override void RegisterOutputParams(GH_Component.GH_OutputParamManager pManager)
@@ -40,6 +46,9 @@ namespace Owl.Grasshopper.Components.Setup
             double flimit = 45.0;
             double hblimit = 182.5;
             double sblimit = 200.0;
+            GeometryBase planGeo = null;
+            Point3d planOrigin = Point3d.Origin;
+            double chairWidth = 55.0;
 
             DA.GetData(0, ref eye);
             DA.GetData(1, ref origin);
@@ -47,8 +56,16 @@ namespace Owl.Grasshopper.Components.Setup
             DA.GetData(3, ref flimit);
             DA.GetData(4, ref hblimit);
             DA.GetData(5, ref sblimit);
+            DA.GetData(6, ref planGeo);
+            DA.GetData(7, ref planOrigin);
+            DA.GetData(8, ref chairWidth);
 
-            var setup = new AudienceSetup(eye, origin, chairs, flimit, hblimit, sblimit);
+            var setup = new AudienceSetup(eye, origin, chairs, flimit, hblimit, sblimit)
+            {
+                PlanGeo = planGeo,
+                PlanOriginPt = planOrigin,
+                ChairWidth = chairWidth
+            };
             DA.SetData(0, setup);
         }
 
