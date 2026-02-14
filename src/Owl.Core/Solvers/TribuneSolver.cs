@@ -688,6 +688,8 @@ namespace Owl.Core.Solvers
                 // --- F4) Plan Chair Placement ---
                 if (audiences != null && audiences.Count > 0 && serializedTribune.RowPoints != null)
                 {
+                    bool isFlipped = serializedTribune.Flip;
+
                     for (int i = 0; i < serializedTribune.RowPoints.Count; i++)
                     {
                         var audience = audiences[i % audiences.Count];
@@ -697,43 +699,77 @@ namespace Owl.Core.Solvers
                             continue;
                         }
 
-                        Point3d rowPt = serializedTribune.RowPoints[i];
+                        // Use secRowSpine X as the reference (matching section behavior)
+                        double spineX = (i < secRowSpine.Count) ? secRowSpine[i].X : serializedTribune.RowPoints[i].X;
+
+                        // Apply audience offset (same direction logic as section)
                         double xOffsetVal = 0;
                         if (audienceOffsets != null && audienceOffsets.Count > 0)
                             xOffsetVal = audienceOffsets[i % audienceOffsets.Count];
 
-                        // Get the plan line for this row's X
-                        var planLine = sectionLineFromX(rowPt.X);
+                        double planX = spineX + (isFlipped ? -xOffsetVal : xOffsetVal);
+
+                        // Get the plan line at this X
+                        var planLine = sectionLineFromX(planX);
                         if (planLine == null)
                         {
                             planChairs.Add(new List<Curve>());
                             continue;
                         }
 
-                        // Trim to get only outside-void segments
+                        // Trim to outside-void segments
                         var segments = trimOutsideVoid(planLine);
 
-                        // Distribute chairs along each segment
+                        // Compute actual physical width from bounding box of PlanChairGeo
+                        double axialWidth = audience.PlanChairWidth > 0 ? audience.PlanChairWidth : 500;
+                        double actualWidth = axialWidth; // fallback
+
+                        var allChairBBox = BoundingBox.Empty;
+                        foreach (var cg in audience.PlanChairGeo)
+                        {
+                            if (cg != null && cg.IsValid)
+                                allChairBBox.Union(cg.GetBoundingBox(true));
+                        }
+                        if (allChairBBox.IsValid)
+                        {
+                            // The bounding box dimension perpendicular to depth
+                            // Chair width is measured in Y direction (along the row/spine)
+                            double bbX = allChairBBox.Max.X - allChairBBox.Min.X;
+                            double bbY = allChairBBox.Max.Y - allChairBBox.Min.Y;
+                            // Take the larger dimension as the "width along row"
+                            actualWidth = Math.Max(bbX, bbY);
+                        }
+
+                        // Overhang: how much the physical chair extends beyond the axial slot on each side
+                        double overhang = Math.Max(0, (actualWidth - axialWidth) / 2.0);
+
+                        // Distribute chairs centered on each segment
                         var rowPlanChairs = new List<Curve>();
-                        double chairWidth = audience.PlanChairWidth > 0 ? audience.PlanChairWidth : 500;
 
                         foreach (var seg in segments)
                         {
                             if (seg == null || !seg.IsValid) continue;
                             double segLen = seg.GetLength();
-                            if (segLen < chairWidth) continue;
 
-                            int chairCount = (int)Math.Floor(segLen / chairWidth);
-                            double startParam = seg.Domain.T0;
-                            double endParam = seg.Domain.T1;
+                            // N chairs fit if: (N-1)*axialWidth + actualWidth <= segLen
+                            if (segLen < actualWidth) continue;
+                            int N = (int)Math.Floor((segLen - actualWidth) / axialWidth) + 1;
+                            if (N < 1) continue;
 
-                            for (int c = 0; c < chairCount; c++)
+                            // Total physical span of N chairs
+                            double totalSpan = (N - 1) * axialWidth + actualWidth;
+                            // Equal margin on each side
+                            double margin = (segLen - totalSpan) / 2.0;
+
+                            for (int c = 0; c < N; c++)
                             {
-                                double t0, t1;
-                                seg.LengthParameter(c * chairWidth, out t0);
-                                seg.LengthParameter((c + 0.5) * chairWidth, out t1);
+                                // Center of the c-th chair along segment
+                                double distAlongSeg = margin + actualWidth / 2.0 + c * axialWidth;
 
-                                Point3d chairPos = seg.PointAt(t1); // center of slot
+                                double t;
+                                if (!seg.LengthParameter(distAlongSeg, out t)) continue;
+
+                                Point3d chairPos = seg.PointAt(t);
 
                                 // Place plan chair geo at this position
                                 Vector3d moveVec = chairPos - audience.PlanChairOrigin;
