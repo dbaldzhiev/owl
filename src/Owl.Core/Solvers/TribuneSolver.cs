@@ -18,7 +18,7 @@ namespace Owl.Core.Solvers
             _railings = railings ?? throw new ArgumentNullException(nameof(railings));
         }
 
-        public void Solve(out Curve tribuneProfile, out Curve stairsProfile, out List<Curve> railingProfiles, out List<Point3d> railingMidpoints, out SerializedTribune serializedTribune, out List<Line> tribRows, out List<Point3d> rrInt, bool flip = false, Point3d origin = default, List<bool> railingToggles = null, List<AudienceSetup> audiences = null)
+        public void Solve(out Curve tribuneProfile, out Curve stairsProfile, out List<Curve> railingProfiles, out List<Point3d> railingMidpoints, out SerializedTribune serializedTribune, out List<Line> tribRows, out List<Point3d> rowSpine, bool flip = false, Point3d origin = default, List<bool> railingToggles = null, List<AudienceSetup> audiences = null)
         {
             tribuneProfile = null;
             stairsProfile = null;
@@ -26,7 +26,7 @@ namespace Owl.Core.Solvers
             railingMidpoints = new List<Point3d>();
             var gaps = new List<double>();
             tribRows = new List<Line>();
-            rrInt = new List<Point3d>();
+            rowSpine = new List<Point3d>();
             
             var rowPoints = new List<Point3d>();
 
@@ -62,7 +62,7 @@ namespace Owl.Core.Solvers
             Point3d r0End = new Point3d(currX + row0Width, 0, currZ);
             
             rowPoints.Add(r0Start);
-            rrInt.Add(r0Start);
+            rowSpine.Add(r0Start);
             tribRows.Add(new Line(new Point3d(currX, 0, currZ), r0End)); // Physical row starts at currX
 
             currX += getRowWidth(0);
@@ -95,24 +95,38 @@ namespace Owl.Core.Solvers
                 currZ += rowRise;
                 tribPts.Add(new Point3d(currX, 0, currZ));
 
-                // Capture Row Data (Front of Row r)
-                double railW = _railings.RailWidth;
-                Point3d rStart = new Point3d(currX + railW, 0, currZ); // Offset by RailWidth
-                Point3d rEnd = new Point3d(currX + thisRowWidth, 0, currZ);
-                
-                rowPoints.Add(rStart);
-                rrInt.Add(rStart);
-                tribRows.Add(new Line(new Point3d(currX, 0, currZ), rEnd)); // Physical row starts at currX
-
-                // --- Generate Railing at this Riser ---
                 // Determine if railing is ON for this row 'r'
-                // Toggles list index corresponds to row index 'r'
                 bool showRailing = true;
                 if (railingToggles != null && railingToggles.Count > 0)
                 {
                     showRailing = railingToggles[r % railingToggles.Count];
                 }
                 resolvedToggles.Add(showRailing);
+
+                // Capture Row Data (Front of Row r)
+                double railW = _railings.RailWidth;
+                Point3d rStart = new Point3d(currX + railW, 0, currZ); // Offset by RailWidth
+                Point3d rEnd = new Point3d(currX + thisRowWidth, 0, currZ);
+                
+                rowPoints.Add(rStart);
+                tribRows.Add(new Line(new Point3d(currX, 0, currZ), rEnd));
+
+                // RowSpine: row-railing intersection when railing is ON,
+                // previous row's hard back limit intersection when railing is OFF
+                if (showRailing)
+                {
+                    rowSpine.Add(rStart); // riserX + railWidth at current Z
+                }
+                else if (audiences != null && audiences.Count > 0 && r > 0)
+                {
+                    var prevAud = audiences[(r - 1) % audiences.Count];
+                    double prevHardBackX = rowPoints[r - 1].X + (prevAud != null ? prevAud.HardBackLimit : 0);
+                    rowSpine.Add(new Point3d(prevHardBackX, 0, currZ));
+                }
+                else
+                {
+                    rowSpine.Add(rStart); // fallback
+                }
 
                 if (showRailing)
                 {
@@ -298,12 +312,12 @@ namespace Owl.Core.Solvers
                     tribRows[i] = ln;
                 }
 
-                // Flip Points
-                for (int i = 0; i < rrInt.Count; i++)
+                // Flip RowSpine Points
+                for (int i = 0; i < rowSpine.Count; i++)
                 {
-                    var pt = rrInt[i];
+                    var pt = rowSpine[i];
                     pt.Transform(mirror);
-                    rrInt[i] = pt;
+                    rowSpine[i] = pt;
                 }
 
                 // Flip Railing Midpoints
@@ -348,11 +362,11 @@ namespace Owl.Core.Solvers
                     tribRows[i] = ln;
                 }
 
-                for (int i = 0; i < rrInt.Count; i++)
+                for (int i = 0; i < rowSpine.Count; i++)
                 {
-                    var pt = rrInt[i];
+                    var pt = rowSpine[i];
                     pt.Transform(move);
-                    rrInt[i] = pt;
+                    rowSpine[i] = pt;
                 }
 
                 // Move Railing Midpoints
