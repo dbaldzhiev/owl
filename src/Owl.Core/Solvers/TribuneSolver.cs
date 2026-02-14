@@ -451,8 +451,10 @@ namespace Owl.Core.Solvers
                 if (voidInput.Count > 0)
                 {
                     var u = Curve.CreateBooleanUnion(voidInput, tol);
-                    if (u != null)
+                    if (u != null && u.Length > 0)
                         voidUnion.AddRange(u);
+                    else
+                        voidUnion.AddRange(voidInput); // fallback: use individual curves
                 }
 
                 // Build clip regions for stairs: (tribune ∩ aisle) - tunnels
@@ -732,12 +734,8 @@ namespace Owl.Core.Solvers
                         }
                         if (allChairBBox.IsValid)
                         {
-                            // The bounding box dimension perpendicular to depth
-                            // Chair width is measured in Y direction (along the row/spine)
-                            double bbX = allChairBBox.Max.X - allChairBBox.Min.X;
-                            double bbY = allChairBBox.Max.Y - allChairBBox.Min.Y;
-                            // Take the larger dimension as the "width along row"
-                            actualWidth = Math.Max(bbX, bbY);
+                            // Chair width along the row is the Y dimension of the bounding box
+                            actualWidth = allChairBBox.Max.Y - allChairBBox.Min.Y;
                         }
 
                         // Overhang: how much the physical chair extends beyond the axial slot on each side
