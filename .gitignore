@@ -140,3 +140,7 @@ $RECYCLE.BIN/
 .DS_Store
 .AppleDouble
 .LSOverride
+
+# Build Logs
+build_*.txt
+build_*.log
