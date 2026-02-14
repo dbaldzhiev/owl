@@ -17,7 +17,12 @@ namespace Owl.Grasshopper.Components.Solvers
 
         protected override void RegisterInputParams(GH_Component.GH_InputParamManager pManager)
         {
-            pManager.AddGenericParameter("SerializedAnalysis", "SAnalysis", "Serialized Analysis Data from the Analysis component", GH_ParamAccess.item);
+            pManager.AddGenericParameter("SerializedTribune", "STrib", "Serialized Tribune Data from the Tribune Solver", GH_ParamAccess.item);
+            pManager.AddGenericParameter("AudienceSetup", "Audience", "Audience Setup List", GH_ParamAccess.list);
+            pManager.AddNumberParameter("AudienceOffsets", "Offsets", "List of X offsets per row", GH_ParamAccess.list);
+
+            pManager[1].Optional = true;
+            pManager[2].Optional = true;
         }
 
         protected override void RegisterOutputParams(GH_Component.GH_OutputParamManager pManager)
@@ -28,23 +33,30 @@ namespace Owl.Grasshopper.Components.Solvers
 
         protected override void SolveInstance(IGH_DataAccess DA)
         {
-            SerializedAnalysis analysis = null;
-            if (!DA.GetData(0, ref analysis) || analysis == null) return;
+            SerializedTribune tribune = null;
+            List<AudienceSetup> audiences = new List<AudienceSetup>();
+            List<double> offsets = new List<double>();
 
-            if (analysis.Tribune != null && analysis.Tribune.Gaps != null)
+            if (!DA.GetData(0, ref tribune) || tribune == null) return;
+            DA.GetDataList(1, audiences);
+            DA.GetDataList(2, offsets);
+
+            // Output Gaps
+            if (tribune.Gaps != null)
             {
-                DA.SetDataList(0, analysis.Tribune.Gaps);
+                DA.SetDataList(0, tribune.Gaps);
             }
 
-            if (analysis.Audiences != null && analysis.Audiences.Count > 0 && analysis.Tribune != null && analysis.Tribune.RowPoints != null)
+            // Compute R2FL
+            if (audiences.Count > 0 && tribune.RowPoints != null)
             {
                 var r2fl = new List<double>();
-                int rowCount = analysis.Tribune.RowPoints.Count;
-                var toggles = analysis.Tribune.RailingToggles;
+                int rowCount = tribune.RowPoints.Count;
+                var toggles = tribune.RailingToggles;
 
                 for (int i = 0; i < rowCount; i++)
                 {
-                    AudienceSetup currentAudience = analysis.Audiences[i % analysis.Audiences.Count];
+                    AudienceSetup currentAudience = audiences[i % audiences.Count];
                     if (currentAudience == null)
                     {
                         r2fl.Add(0);
@@ -52,9 +64,9 @@ namespace Owl.Grasshopper.Components.Solvers
                     }
 
                     double offset = 0;
-                    if (analysis.Offsets != null && analysis.Offsets.Count > 0)
+                    if (offsets != null && offsets.Count > 0)
                     {
-                        offset = analysis.Offsets[i % analysis.Offsets.Count];
+                        offset = offsets[i % offsets.Count];
                     }
 
                     bool hasRailing = true;
@@ -65,22 +77,19 @@ namespace Owl.Grasshopper.Components.Solvers
 
                     if (hasRailing)
                     {
-                        // Railing present: distance from back of railing to front limit
-                        r2fl.Add(currentAudience.FrontLimit + offset);
+                        r2fl.Add(currentAudience.SecFL + offset);
                     }
                     else
                     {
-                        // No railing: distance from previous row's hard back limit to current front limit
                         if (i > 0)
                         {
-                            AudienceSetup prevAudience = analysis.Audiences[(i - 1) % analysis.Audiences.Count];
-                            double prevHardBack = prevAudience != null ? prevAudience.HardBackLimit : 0;
-                            r2fl.Add(prevHardBack + currentAudience.FrontLimit + offset);
+                            AudienceSetup prevAudience = audiences[(i - 1) % audiences.Count];
+                            double prevHardBack = prevAudience != null ? prevAudience.SecHBL : 0;
+                            r2fl.Add(prevHardBack + currentAudience.SecFL + offset);
                         }
                         else
                         {
-                            // Row 0 with no railing — fallback to frontLimit + offset
-                            r2fl.Add(currentAudience.FrontLimit + offset);
+                            r2fl.Add(currentAudience.SecFL + offset);
                         }
                     }
                 }
@@ -92,7 +101,6 @@ namespace Owl.Grasshopper.Components.Solvers
         {
             get
             {
-                // Reusing Analysis icon placeholder logic or returning null
                 return null;
             }
         }

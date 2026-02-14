@@ -18,7 +18,21 @@ namespace Owl.Core.Solvers
             _railings = railings ?? throw new ArgumentNullException(nameof(railings));
         }
 
-        public void Solve(out Curve tribuneProfile, out Curve stairsProfile, out List<Curve> railingProfiles, out List<Point3d> railingMidpoints, out SerializedTribune serializedTribune, out List<Line> tribRows, out List<Point3d> rowSpine, bool flip = false, Point3d origin = default, List<bool> railingToggles = null, List<AudienceSetup> audiences = null)
+        public void Solve(
+            out Curve tribuneProfile,
+            out Curve stairsProfile,
+            out List<Curve> railingProfiles,
+            out List<Point3d> railingMidpoints,
+            out SerializedTribune serializedTribune,
+            out List<Line> tribRows,
+            out List<Point3d> rowSpine,
+            out List<List<Curve>> placedChairs,
+            out List<List<Line>> limitLines,
+            bool flip = false,
+            Point3d origin = default,
+            List<bool> railingToggles = null,
+            List<AudienceSetup> audiences = null,
+            List<double> audienceOffsets = null)
         {
             tribuneProfile = null;
             stairsProfile = null;
@@ -27,10 +41,12 @@ namespace Owl.Core.Solvers
             var gaps = new List<double>();
             tribRows = new List<Line>();
             rowSpine = new List<Point3d>();
-            
+            placedChairs = new List<List<Curve>>();
+            limitLines = new List<List<Line>>();
+
             var rowPoints = new List<Point3d>();
 
-            if (_tribune.Rows <= 0) 
+            if (_tribune.Rows <= 0)
             {
                 serializedTribune = new SerializedTribune();
                 return;
@@ -47,23 +63,22 @@ namespace Owl.Core.Solvers
             tribPts.Add(new Point3d(currX, 0, currZ));
 
             // Row 0 (Ground/Front row base)
-            double row0Width = 0.8; 
+            double row0Width = 0.8;
             if (_tribune.RowWidths.Count > 0) row0Width = _tribune.RowWidths[0];
-            
+
             Func<int, double> getRowWidth = (i) => {
-                if (_tribune.RowWidths.Count == 0) return 0.8; // Default
+                if (_tribune.RowWidths.Count == 0) return 0.8;
                 return _tribune.RowWidths[i % _tribune.RowWidths.Count];
             };
 
             // Capture Row 0 Data
-            // Front of Row 0 (Railing Interior Intersection)
             double railW_0 = _railings.RailWidth;
-            Point3d r0Start = new Point3d(currX + railW_0, 0, currZ); // Offset by RailWidth
+            Point3d r0Start = new Point3d(currX + railW_0, 0, currZ);
             Point3d r0End = new Point3d(currX + row0Width, 0, currZ);
-            
+
             rowPoints.Add(r0Start);
             rowSpine.Add(r0Start);
-            tribRows.Add(new Line(new Point3d(currX, 0, currZ), r0End)); // Physical row starts at currX
+            tribRows.Add(new Line(new Point3d(currX, 0, currZ), r0End));
 
             currX += getRowWidth(0);
             tribPts.Add(new Point3d(currX, 0, currZ));
@@ -73,11 +88,11 @@ namespace Owl.Core.Solvers
             resolvedToggles.Add(true); // Row 0 always has front railing
 
             // Elevated Rows
-            for (int r = 1; r < _tribune.Rows; r++) 
+            for (int r = 1; r < _tribune.Rows; r++)
             {
                 int idx = r - 1;
                 int count = 1;
-                
+
                 if (_tribune.ElevCounts != null && _tribune.ElevCounts.Count > 0)
                 {
                     if (idx < _tribune.ElevCounts.Count)
@@ -95,7 +110,7 @@ namespace Owl.Core.Solvers
                 currZ += rowRise;
                 tribPts.Add(new Point3d(currX, 0, currZ));
 
-                // Determine if railing is ON for this row 'r'
+                // Determine if railing is ON for this row
                 bool showRailing = true;
                 if (railingToggles != null && railingToggles.Count > 0)
                 {
@@ -103,11 +118,11 @@ namespace Owl.Core.Solvers
                 }
                 resolvedToggles.Add(showRailing);
 
-                // Capture Row Data (Front of Row r)
+                // Capture Row Data
                 double railW = _railings.RailWidth;
-                Point3d rStart = new Point3d(currX + railW, 0, currZ); // Offset by RailWidth
+                Point3d rStart = new Point3d(currX + railW, 0, currZ);
                 Point3d rEnd = new Point3d(currX + thisRowWidth, 0, currZ);
-                
+
                 rowPoints.Add(rStart);
                 tribRows.Add(new Line(new Point3d(currX, 0, currZ), rEnd));
 
@@ -115,12 +130,12 @@ namespace Owl.Core.Solvers
                 // previous row's hard back limit intersection when railing is OFF
                 if (showRailing)
                 {
-                    rowSpine.Add(rStart); // riserX + railWidth at current Z
+                    rowSpine.Add(rStart);
                 }
                 else if (audiences != null && audiences.Count > 0 && r > 0)
                 {
                     var prevAud = audiences[(r - 1) % audiences.Count];
-                    double prevHardBackX = rowPoints[r - 1].X + (prevAud != null ? prevAud.HardBackLimit : 0);
+                    double prevHardBackX = rowPoints[r - 1].X + (prevAud != null ? prevAud.SecHBL : 0);
                     rowSpine.Add(new Point3d(prevHardBackX, 0, currZ));
                 }
                 else
@@ -132,7 +147,6 @@ namespace Owl.Core.Solvers
                 {
                     double rBottomZ = currZ - rowRise;
                     double rTopZ = currZ + _railings.RailHeight;
-                    // railW is already defined above
 
                     Point3d p0 = new Point3d(currX, 0, rBottomZ);
                     Point3d p1 = new Point3d(currX, 0, rTopZ);
@@ -144,7 +158,6 @@ namespace Owl.Core.Solvers
                         var railRec = new Polyline(new[] { p0, p1, p2, p3, p0 });
                         railingProfiles.Add(railRec.ToNurbsCurve());
 
-                        // Midpoint axis: top of railing, centred on thickness
                         Point3d midAxis = new Point3d(currX + railW / 2.0, 0, rTopZ);
                         railingMidpoints.Add(midAxis);
                     }
@@ -157,30 +170,19 @@ namespace Owl.Core.Solvers
 
             if (tribPts.Count > 1)
                 tribuneProfile = new Polyline(tribPts).ToNurbsCurve();
-            
+
             serializedTribune = new SerializedTribune(rowPoints, gaps, railingToggles: resolvedToggles);
 
             // -----------------------------
             // B) STAIRS PROFILE
             // -----------------------------
             var stairPts = new List<Point3d>();
-            
-            double currentBaseX = getRowWidth(0); // Start of Row 1 (first elevated)
+
+            double currentBaseX = getRowWidth(0);
             double currentBaseZ = 0.0;
 
-            for (int r = 0; r < _tribune.Rows - 1; r++) // Adjusted loop limit based on new understanding?
+            for (int r = 0; r < _tribune.Rows - 1; r++)
             {
-                // We need stairs connecting Row r to Row r+1.
-                // Max r is Rows-2 (connecting to Rows-1).
-                // Existing logic: r goes 0 to Rows-1? 
-                
-                // If Rows=3. Indices 0, 1, 2.
-                // Stair 0: Connects 0->1.
-                // Stair 1: Connects 1->2.
-                // Stair 2: Connects 2->3? (Row 3 doesn't exist).
-                
-                // So loop should be r < Rows - 1.
-                
                 int idx = r;
                 int count = 1;
 
@@ -195,42 +197,40 @@ namespace Owl.Core.Solvers
 
                 double rise = _stairs.TreadHeight;
                 double run = _stairs.TreadWidth;
-                
+
                 bool inset = false;
                 if (_tribune.StairInsets.Count > 0)
                 {
                     inset = _tribune.StairInsets[r % _tribune.StairInsets.Count];
                 }
-                
+
                 double insetVal = inset ? _railings.RailWidth : 0.0;
-                
+
                 double targetLandingZ = currentBaseZ + (count * rise);
-                
+
                 double flightRun = (count - 1) * run;
-                double startX = currentBaseX - flightRun + insetVal; 
-                
-                // Connect from previous
+                double startX = currentBaseX - flightRun + insetVal;
+
                 if (stairPts.Count > 0)
                 {
-                     Point3d lastPt = stairPts[stairPts.Count - 1];
-                     if (Math.Abs(lastPt.X - startX) > 0.001 || Math.Abs(lastPt.Z - currentBaseZ) > 0.001)
-                     {
-                         stairPts.Add(new Point3d(startX, 0, currentBaseZ));
-                     }
+                    Point3d lastPt = stairPts[stairPts.Count - 1];
+                    if (Math.Abs(lastPt.X - startX) > 0.001 || Math.Abs(lastPt.Z - currentBaseZ) > 0.001)
+                    {
+                        stairPts.Add(new Point3d(startX, 0, currentBaseZ));
+                    }
                 }
                 else
                 {
-                     stairPts.Add(new Point3d(startX, 0, currentBaseZ));
+                    stairPts.Add(new Point3d(startX, 0, currentBaseZ));
                 }
 
-                // Build steps
                 double cx = startX;
                 double cz = currentBaseZ;
 
                 for (int i = 0; i < count; i++)
                 {
                     cz += rise;
-                    stairPts.Add(new Point3d(cx, 0, cz)); 
+                    stairPts.Add(new Point3d(cx, 0, cz));
                     if (i < count - 1)
                     {
                         cx += run;
@@ -239,58 +239,48 @@ namespace Owl.Core.Solvers
                 }
 
                 double prevRiserX = currentBaseX - getRowWidth(r);
-                if (r == 0) prevRiserX = 0; 
-                
-                // Determine if railing is ON for this row 'r'
+                if (r == 0) prevRiserX = 0;
+
                 bool showRailing = true;
                 if (railingToggles != null && railingToggles.Count > 0)
                 {
                     showRailing = railingToggles[r % railingToggles.Count];
                 }
 
-                double backOffset = _railings.RailWidth; // Default to rail width (physical presence)
-                
+                double backOffset = _railings.RailWidth;
+
                 if (!showRailing)
                 {
-                    // Railing is OFF. Check for Audience limits.
                     if (audiences != null && audiences.Count > 0)
                     {
                         var aud = audiences[r % audiences.Count];
                         if (aud != null)
                         {
-                            // "calculated from front rows hard limit line"
-                            // Assuming HardBackLimit defines the back boundary of the seating area relative to row start.
-                            backOffset = aud.HardBackLimit;
+                            backOffset = aud.SecHBL;
                         }
                     }
                     else
                     {
-                        // No audience provided, but railing is off. 
-                        // If we assume no physical obstruction, maybe 0?
-                        // However, to be safe and avoid zero-width gaps if not intended, 
-                        // we'll keep RailWidth as a placeholder or 0 if user wants "pure" gap.
-                        // Given user request "when there is no railing the chair gaps are calculated from...",
-                        // it implies a specific alternative behavior.
-                        // I'll set it to 0 if no audience, meaning gap starts directly at riser.
                         backOffset = 0.0;
                     }
                 }
-                
+
                 double railInnerFace = prevRiserX + backOffset;
-                if (r == 0) railInnerFace = 0; 
-                
+                if (r == 0) railInnerFace = 0;
+
                 double thisGap = startX - railInnerFace;
                 gaps.Add(thisGap);
 
-                currentBaseX += getRowWidth(r+1); 
+                currentBaseX += getRowWidth(r + 1);
                 currentBaseZ = targetLandingZ;
             }
 
             if (stairPts.Count > 1)
                 stairsProfile = new Polyline(stairPts).ToNurbsCurve();
 
+
             // -----------------------------
-            // C) FLIP LOGIC
+            // D) FLIP LOGIC
             // -----------------------------
             if (flip)
             {
@@ -298,7 +288,7 @@ namespace Owl.Core.Solvers
 
                 if (tribuneProfile != null) tribuneProfile.Transform(mirror);
                 if (stairsProfile != null) stairsProfile.Transform(mirror);
-                
+
                 foreach (var rv in railingProfiles)
                 {
                     if (rv != null) rv.Transform(mirror);
@@ -327,7 +317,7 @@ namespace Owl.Core.Solvers
                     pt.Transform(mirror);
                     railingMidpoints[i] = pt;
                 }
-                
+
                 // Update Serialized Tribune Points
                 var newRowPoints = new List<Point3d>();
                 foreach (var pt in serializedTribune.RowPoints)
@@ -341,7 +331,7 @@ namespace Owl.Core.Solvers
             }
 
             // -----------------------------
-            // D) ORIGIN TRANSLATION
+            // E) ORIGIN TRANSLATION
             // -----------------------------
             if (origin != Point3d.Origin)
             {
@@ -386,6 +376,80 @@ namespace Owl.Core.Solvers
                     movedRowPoints.Add(p);
                 }
                 serializedTribune.RowPoints = movedRowPoints;
+            }
+
+            // -----------------------------
+            // F) CHAIR PLACEMENT & LIMIT LINES (after flip/origin so RowPoints are final)
+            // -----------------------------
+            if (audiences != null && audiences.Count > 0 && serializedTribune.RowPoints != null)
+            {
+                bool isFlipped = serializedTribune.Flip;
+
+                for (int i = 0; i < serializedTribune.RowPoints.Count; i++)
+                {
+                    AudienceSetup currentAudience = audiences[i % audiences.Count];
+                    if (currentAudience == null)
+                    {
+                        placedChairs.Add(new List<Curve>());
+                        limitLines.Add(new List<Line>());
+                        continue;
+                    }
+
+                    Vector3d baseEyeOffset = currentAudience.EyeLocation - currentAudience.SecOrigin;
+
+                    Point3d rowPoint = serializedTribune.RowPoints[i];
+                    double xOffsetVal = 0;
+                    if (audienceOffsets != null && audienceOffsets.Count > 0)
+                    {
+                        xOffsetVal = audienceOffsets[i % audienceOffsets.Count];
+                    }
+
+                    Vector3d xOffsetVec = new Vector3d(xOffsetVal, 0, 0);
+                    Vector3d currentEyeOffset = baseEyeOffset + xOffsetVec;
+
+                    Transform mirrorXform = Transform.Identity;
+                    if (isFlipped)
+                    {
+                        currentEyeOffset.X = -currentEyeOffset.X;
+                        mirrorXform = Transform.Mirror(new Plane(currentAudience.SecOrigin, Vector3d.YAxis, Vector3d.ZAxis));
+                        xOffsetVec.X = -xOffsetVec.X;
+                    }
+
+                    // Limit Lines
+                    var rowLimits = new List<Line>();
+                    double z0 = rowPoint.Z;
+                    double z1 = rowPoint.Z + 50;
+
+                    double xF = rowPoint.X + (isFlipped ? -currentAudience.SecFL : currentAudience.SecFL) + (isFlipped ? -xOffsetVal : xOffsetVal);
+                    double xHB = rowPoint.X + (isFlipped ? -currentAudience.SecHBL : currentAudience.SecHBL) + (isFlipped ? -xOffsetVal : xOffsetVal);
+                    double xSB = rowPoint.X + (isFlipped ? -currentAudience.SecSBL : currentAudience.SecSBL) + (isFlipped ? -xOffsetVal : xOffsetVal);
+
+                    rowLimits.Add(new Line(new Point3d(xF, 0, z0), new Point3d(xF, 0, z1)));
+                    rowLimits.Add(new Line(new Point3d(xHB, 0, z0), new Point3d(xHB, 0, z1)));
+                    rowLimits.Add(new Line(new Point3d(xSB, 0, z0), new Point3d(xSB, 0, z1)));
+                    limitLines.Add(rowLimits);
+
+                    // Place Chairs
+                    var rowChairs = new List<Curve>();
+                    if (currentAudience.SecChairGeo != null)
+                    {
+                        Vector3d move = (rowPoint - currentAudience.SecOrigin) + xOffsetVec;
+                        var moveXform = Transform.Translation(move);
+
+                        foreach (var chairCrv in currentAudience.SecChairGeo)
+                        {
+                            if (chairCrv == null) continue;
+                            var dup = chairCrv.DuplicateCurve();
+                            if (isFlipped)
+                            {
+                                dup.Transform(mirrorXform);
+                            }
+                            dup.Transform(moveXform);
+                            rowChairs.Add(dup);
+                        }
+                    }
+                    placedChairs.Add(rowChairs);
+                }
             }
         }
     }

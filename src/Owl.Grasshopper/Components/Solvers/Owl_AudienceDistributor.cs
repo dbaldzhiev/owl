@@ -2,18 +2,17 @@ using System;
 using System.Collections.Generic;
 using Grasshopper;
 using Grasshopper.Kernel;
-using Grasshopper.Kernel.Data;
 using Rhino.Geometry;
 using Owl.Core.Primitives;
 using Owl.Core.Solvers;
 
 namespace Owl.Grasshopper.Components.Solvers
 {
-    public class Owl_AudienceDistributor : GH_Component
+    public class Owl_Analysis : GH_Component
     {
-        public Owl_AudienceDistributor()
-          : base("Audience Distributor", "AudDist",
-              "Calculates sightlines, projector cone, and distributes chairs with optional alignment.",
+        public Owl_Analysis()
+          : base("Analysis", "Analysis",
+              "Calculates sightlines and projector cone from tribune, screen, and projector data.",
               "Owl", "Solvers")
         {
         }
@@ -24,7 +23,7 @@ namespace Owl.Grasshopper.Components.Solvers
             pManager.AddGenericParameter("SerializedTribune", "STrib", "Serialized Tribune Output", GH_ParamAccess.item);
             pManager.AddGenericParameter("ProjectorSetup", "Projector", "Projector Setup Object", GH_ParamAccess.item);
             pManager.AddGenericParameter("ScreenSetup", "Screen", "Screen Setup Object", GH_ParamAccess.item);
-            pManager.AddNumberParameter("AudienceOffsets", "Offsets", "List of X offsets for chairs and eyes per row", GH_ParamAccess.list);
+            pManager.AddNumberParameter("AudienceOffsets", "Offsets", "List of X offsets for eyes per row", GH_ParamAccess.list);
 
             pManager[2].Optional = true;
             pManager[3].Optional = true;
@@ -35,9 +34,6 @@ namespace Owl.Grasshopper.Components.Solvers
         {
             pManager.AddLineParameter("Sightlines", "Lines", "Sightlines from eyes to screen bottom", GH_ParamAccess.list);
             pManager.AddBrepParameter("ProjectorCone", "Cone", "Projector cone geometry", GH_ParamAccess.item);
-            pManager.AddCurveParameter("Chairs", "Chairs", "Distributed chair geometry", GH_ParamAccess.tree);
-            pManager.AddLineParameter("LimitLines", "Limits", "Vertical lines for front and back limits", GH_ParamAccess.tree);
-            pManager.AddGenericParameter("SerializedAnalysis", "SAnalisys", "Serialized Analysis Data (for validation)", GH_ParamAccess.item);
         }
 
         protected override void SolveInstance(IGH_DataAccess DA)
@@ -53,43 +49,22 @@ namespace Owl.Grasshopper.Components.Solvers
             DA.GetData(2, ref projector);
             DA.GetData(3, ref screen);
             DA.GetDataList(4, offsets);
-            
+
             List<Line> sightlines;
-            List<List<Line>> limitLines;
             Brep cone;
-            List<List<Curve>> chairs;
 
-            Analysis.Calculate(audiences, strib, screen, projector, offsets, out sightlines, out limitLines, out cone, out chairs);
-
-            var serializedAnalysis = new SerializedAnalysis(strib, audiences, sightlines, offsets);
-
-            // Convert to DataTrees
-            var limitTree = new DataTree<Line>();
-            for (int i = 0; i < limitLines.Count; i++)
-            {
-                limitTree.AddRange(limitLines[i], new global::Grasshopper.Kernel.Data.GH_Path(i));
-            }
-
-            var chairTree = new DataTree<Curve>();
-            for (int i = 0; i < chairs.Count; i++)
-            {
-                chairTree.AddRange(chairs[i], new global::Grasshopper.Kernel.Data.GH_Path(i));
-            }
+            Analysis.Calculate(strib, audiences, screen, projector, offsets, out sightlines, out cone);
 
             DA.SetDataList(0, sightlines);
             DA.SetData(1, cone);
-            DA.SetDataTree(2, chairTree);
-            DA.SetDataTree(3, limitTree);
-            DA.SetData(4, serializedAnalysis);
         }
 
         protected override System.Drawing.Bitmap Icon
         {
             get
             {
-                var assembly = typeof(Owl_AudienceDistributor).Assembly;
-                // Keeping old icon for now, or should check if new one exists?
-                var resourceName = "Owl.Grasshopper.Icons.Owl_Analysis_24.png"; 
+                var assembly = typeof(Owl_Analysis).Assembly;
+                var resourceName = "Owl.Grasshopper.Icons.Owl_Analysis_24.png";
                 using (var stream = assembly.GetManifestResourceStream(resourceName))
                 {
                     if (stream == null) return null;
@@ -97,6 +72,6 @@ namespace Owl.Grasshopper.Components.Solvers
                 }
             }
         }
-        public override Guid ComponentGuid => new Guid("8E12C163-5678-8901-2345-67890123EFAB"); // Keep existing GUID to maintain connection if possible? Or new one? Usually safest to keep if renaming in place.
+        public override Guid ComponentGuid => new Guid("8E12C163-5678-8901-2345-67890123EFAB");
     }
 }
