@@ -18,12 +18,13 @@ namespace Owl.Core.Solvers
             _railings = railings ?? throw new ArgumentNullException(nameof(railings));
         }
 
-        public void Solve(out Curve tribuneProfile, out Curve stairsProfile, out List<Curve> railingProfiles, out List<double> gaps, out SerializedTribune serializedTribune, out List<Line> tribRows, out List<Point3d> rrInt, bool flip = false, Point3d origin = default, List<bool> railingToggles = null, List<AudienceSetup> audiences = null)
+        public void Solve(out Curve tribuneProfile, out Curve stairsProfile, out List<Curve> railingProfiles, out List<Point3d> railingMidpoints, out SerializedTribune serializedTribune, out List<Line> tribRows, out List<Point3d> rrInt, bool flip = false, Point3d origin = default, List<bool> railingToggles = null, List<AudienceSetup> audiences = null)
         {
             tribuneProfile = null;
             stairsProfile = null;
             railingProfiles = new List<Curve>();
-            gaps = new List<double>();
+            railingMidpoints = new List<Point3d>();
+            var gaps = new List<double>();
             tribRows = new List<Line>();
             rrInt = new List<Point3d>();
             
@@ -67,6 +68,10 @@ namespace Owl.Core.Solvers
             currX += getRowWidth(0);
             tribPts.Add(new Point3d(currX, 0, currZ));
 
+            // Track resolved railing toggles per row (for Validator)
+            var resolvedToggles = new List<bool>();
+            resolvedToggles.Add(true); // Row 0 always has front railing
+
             // Elevated Rows
             for (int r = 1; r < _tribune.Rows; r++) 
             {
@@ -107,6 +112,7 @@ namespace Owl.Core.Solvers
                 {
                     showRailing = railingToggles[r % railingToggles.Count];
                 }
+                resolvedToggles.Add(showRailing);
 
                 if (showRailing)
                 {
@@ -123,6 +129,10 @@ namespace Owl.Core.Solvers
                     {
                         var railRec = new Polyline(new[] { p0, p1, p2, p3, p0 });
                         railingProfiles.Add(railRec.ToNurbsCurve());
+
+                        // Midpoint axis: top of railing, centred on thickness
+                        Point3d midAxis = new Point3d(currX + railW / 2.0, 0, rTopZ);
+                        railingMidpoints.Add(midAxis);
                     }
                 }
 
@@ -134,7 +144,7 @@ namespace Owl.Core.Solvers
             if (tribPts.Count > 1)
                 tribuneProfile = new Polyline(tribPts).ToNurbsCurve();
             
-            serializedTribune = new SerializedTribune(rowPoints, gaps);
+            serializedTribune = new SerializedTribune(rowPoints, gaps, railingToggles: resolvedToggles);
 
             // -----------------------------
             // B) STAIRS PROFILE
@@ -295,6 +305,14 @@ namespace Owl.Core.Solvers
                     pt.Transform(mirror);
                     rrInt[i] = pt;
                 }
+
+                // Flip Railing Midpoints
+                for (int i = 0; i < railingMidpoints.Count; i++)
+                {
+                    var pt = railingMidpoints[i];
+                    pt.Transform(mirror);
+                    railingMidpoints[i] = pt;
+                }
                 
                 // Update Serialized Tribune Points
                 var newRowPoints = new List<Point3d>();
@@ -335,6 +353,14 @@ namespace Owl.Core.Solvers
                     var pt = rrInt[i];
                     pt.Transform(move);
                     rrInt[i] = pt;
+                }
+
+                // Move Railing Midpoints
+                for (int i = 0; i < railingMidpoints.Count; i++)
+                {
+                    var pt = railingMidpoints[i];
+                    pt.Transform(move);
+                    railingMidpoints[i] = pt;
                 }
 
                 // Update Serialized Tribune Points

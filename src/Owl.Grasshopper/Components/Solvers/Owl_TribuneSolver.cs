@@ -35,7 +35,7 @@ namespace Owl.Grasshopper.Components.Solvers
             pManager.AddCurveParameter("TribuneProfile", "Profile", "Profile of the tribune", GH_ParamAccess.item);
             pManager.AddCurveParameter("StairsProfile", "Stairs", "Profile of the stairs", GH_ParamAccess.item);
             pManager.AddCurveParameter("RailingProfiles", "Railings", "Profiles of the railings", GH_ParamAccess.list);
-            pManager.AddNumberParameter("Gaps", "Gaps", "Gap distances", GH_ParamAccess.list);
+            pManager.AddPointParameter("RailMidpoints", "RailMid", "Midpoint axis of each railing (top, mid-thickness)", GH_ParamAccess.list);
             pManager.AddLineParameter("TribRows", "Rows", "Tribune Row Lines", GH_ParamAccess.list);
             pManager.AddPointParameter("RRint", "RRint", "Row-Railing Intersection Points", GH_ParamAccess.list);
             pManager.AddGenericParameter("SerializedTribune", "STrib", "Serialized Tribune Data", GH_ParamAccess.item);
@@ -63,17 +63,17 @@ namespace Owl.Grasshopper.Components.Solvers
             Curve tripP;
             Curve stairsP;
             List<Curve> railsP;
-            List<double> gaps;
+            List<Point3d> railMidpoints;
             SerializedTribune strib;
             List<Line> tribRows;
             List<Point3d> rrInt;
 
-            solver.Solve(out tripP, out stairsP, out railsP, out gaps, out strib, out tribRows, out rrInt, flip, origin, railingToggles, audiences);
+            solver.Solve(out tripP, out stairsP, out railsP, out railMidpoints, out strib, out tribRows, out rrInt, flip, origin, railingToggles, audiences);
 
             DA.SetData(0, tripP);
             DA.SetData(1, stairsP);
             DA.SetDataList(2, railsP);
-            DA.SetDataList(3, gaps);
+            DA.SetDataList(3, railMidpoints);
             DA.SetDataList(4, tribRows);
             DA.SetDataList(5, rrInt);
             DA.SetData(6, strib);

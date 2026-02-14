@@ -40,23 +40,49 @@ namespace Owl.Grasshopper.Components.Solvers
             {
                 var r2fl = new List<double>();
                 int rowCount = analysis.Tribune.RowPoints.Count;
+                var toggles = analysis.Tribune.RailingToggles;
 
                 for (int i = 0; i < rowCount; i++)
                 {
                     AudienceSetup currentAudience = analysis.Audiences[i % analysis.Audiences.Count];
                     if (currentAudience == null)
                     {
-                        r2fl.Add(0); // Or strict validator failure?
+                        r2fl.Add(0);
                         continue;
                     }
 
-                    double frontLimit = currentAudience.FrontLimit;
                     double offset = 0;
                     if (analysis.Offsets != null && analysis.Offsets.Count > 0)
                     {
                         offset = analysis.Offsets[i % analysis.Offsets.Count];
                     }
-                    r2fl.Add(frontLimit + offset);
+
+                    bool hasRailing = true;
+                    if (toggles != null && toggles.Count > i)
+                    {
+                        hasRailing = toggles[i];
+                    }
+
+                    if (hasRailing)
+                    {
+                        // Railing present: distance from back of railing to front limit
+                        r2fl.Add(currentAudience.FrontLimit + offset);
+                    }
+                    else
+                    {
+                        // No railing: distance from previous row's hard back limit to current front limit
+                        if (i > 0)
+                        {
+                            AudienceSetup prevAudience = analysis.Audiences[(i - 1) % analysis.Audiences.Count];
+                            double prevHardBack = prevAudience != null ? prevAudience.HardBackLimit : 0;
+                            r2fl.Add(prevHardBack + currentAudience.FrontLimit + offset);
+                        }
+                        else
+                        {
+                            // Row 0 with no railing — fallback to frontLimit + offset
+                            r2fl.Add(currentAudience.FrontLimit + offset);
+                        }
+                    }
                 }
                 DA.SetDataList(1, r2fl);
             }
