@@ -13,38 +13,44 @@ namespace Owl.Grasshopper.Components.Solvers
     {
         public Owl_TribuneSolver()
           : base("Tribune Solver", "TribSolve",
-              "Generate the 3D profile curves, place chairs, and compute limits.",
+              "Generate section and plan geometry for the tribune.",
               "Owl", "Solvers")
         {
         }
 
         protected override void RegisterInputParams(GH_Component.GH_InputParamManager pManager)
         {
-            pManager.AddGenericParameter("TribuneSetup", "Trib", "Tribune Setup Object", GH_ParamAccess.item);
-            pManager.AddGenericParameter("StairSetup", "Stair", "Stair Setup Object", GH_ParamAccess.item);
-            pManager.AddGenericParameter("RailingSetup", "Rail", "Railing Setup Object", GH_ParamAccess.item);
-            pManager.AddBooleanParameter("Flip", "Flip", "Flip the tribune (Right-to-Left)", GH_ParamAccess.item, false);
-            pManager.AddPointParameter("Origin", "Origin", "Origin point of the tribune", GH_ParamAccess.item, Point3d.Origin);
-            pManager.AddBooleanParameter("RailingToggles", "RailTogs", "List of booleans to toggle railing per row", GH_ParamAccess.list);
-            pManager.AddGenericParameter("AudienceSetup", "Audience", "Audience Setup List", GH_ParamAccess.list);
-            pManager.AddNumberParameter("AudienceOffsets", "Offsets", "List of X offsets for chairs per row", GH_ParamAccess.list);
+            pManager.AddGenericParameter("TribuneSetup", "Trib", "Tribune Setup Object", GH_ParamAccess.item);          // 0
+            pManager.AddGenericParameter("StairSetup", "Stair", "Stair Setup Object", GH_ParamAccess.item);             // 1
+            pManager.AddGenericParameter("RailingSetup", "Rail", "Railing Setup Object", GH_ParamAccess.item);           // 2
+            pManager.AddBooleanParameter("Flip", "Flip", "Flip the tribune (Right-to-Left)", GH_ParamAccess.item, false); // 3
+            pManager.AddPointParameter("Origin", "Origin", "Origin point of the tribune", GH_ParamAccess.item, Point3d.Origin); // 4
+            pManager.AddBooleanParameter("RailingToggles", "RailTogs", "Toggle railing per row", GH_ParamAccess.list);   // 5
+            pManager.AddGenericParameter("AudienceSetup", "Audience", "Audience Setup List", GH_ParamAccess.list);       // 6
+            pManager.AddNumberParameter("AudienceOffsets", "Offsets", "X offsets for chairs per row", GH_ParamAccess.list); // 7
+            pManager.AddGenericParameter("HallSetup", "Hall", "Hall Setup for plan generation", GH_ParamAccess.item);     // 8
 
             pManager[5].Optional = true;
             pManager[6].Optional = true;
             pManager[7].Optional = true;
+            pManager[8].Optional = true;
         }
 
         protected override void RegisterOutputParams(GH_Component.GH_OutputParamManager pManager)
         {
-            pManager.AddCurveParameter("TribuneProfile", "Profile", "Profile of the tribune", GH_ParamAccess.item);           // 0
-            pManager.AddCurveParameter("StairsProfile", "Stairs", "Profile of the stairs", GH_ParamAccess.item);              // 1
-            pManager.AddCurveParameter("RailingProfiles", "Railings", "Profiles of the railings", GH_ParamAccess.list);       // 2
-            pManager.AddPointParameter("RailMidpoints", "RailMid", "Midpoint axis of each railing (top, mid-thickness)", GH_ParamAccess.list); // 3
-            pManager.AddLineParameter("TribRows", "Rows", "Tribune Row Lines", GH_ParamAccess.list);                         // 4
-            pManager.AddPointParameter("RowSpine", "Spine", "Row-Railing intersection (railing ON) or previous row hard limit intersection (railing OFF)", GH_ParamAccess.list); // 5
-            pManager.AddCurveParameter("Chairs", "Chairs", "Distributed chair geometry", GH_ParamAccess.tree);                // 6
-            pManager.AddLineParameter("LimitLines", "Limits", "Vertical lines for front and back limits", GH_ParamAccess.tree); // 7
-            pManager.AddGenericParameter("SerializedTribune", "STrib", "Serialized Tribune Data", GH_ParamAccess.item);        // 8
+            pManager.AddGenericParameter("SerializedTribune", "STrib", "Serialized Tribune Data", GH_ParamAccess.item);             // 0
+            pManager.AddCurveParameter("SecTribune", "SecTrib", "Section tribune profile", GH_ParamAccess.item);                    // 1
+            pManager.AddCurveParameter("SecStairs", "SecStairs", "Section stairs profile", GH_ParamAccess.item);                    // 2
+            pManager.AddCurveParameter("SecRailings", "SecRails", "Section railing profiles", GH_ParamAccess.list);                 // 3
+            pManager.AddPointParameter("SecRailingsSpine", "SecRSpine", "Section railing midpoint axis", GH_ParamAccess.list);      // 4
+            pManager.AddPointParameter("SecRowSpine", "SecSpine", "Section row spine points", GH_ParamAccess.list);                 // 5
+            pManager.AddCurveParameter("SecChairs", "SecChairs", "Section chair geometry", GH_ParamAccess.tree);                    // 6
+            pManager.AddLineParameter("SecLimitLines", "SecLimits", "Section limit lines", GH_ParamAccess.tree);                    // 7
+            pManager.AddCurveParameter("PlanTribune", "PlanTrib", "Plan tribune lines", GH_ParamAccess.list);                       // 8
+            pManager.AddCurveParameter("PlanStairs", "PlanStairs", "Plan stair lines", GH_ParamAccess.list);                        // 9
+            pManager.AddCurveParameter("PlanRailings", "PlanRails", "Plan railing lines", GH_ParamAccess.list);                     // 10
+            pManager.AddCurveParameter("PlanRailingsSpine", "PlanRSpine", "Plan railing spine axis lines", GH_ParamAccess.list);     // 11
+            pManager.AddCurveParameter("PlanChairs", "PlanChairs", "Plan chair geometry", GH_ParamAccess.tree);                     // 12
         }
 
         protected override void SolveInstance(IGH_DataAccess DA)
@@ -57,6 +63,7 @@ namespace Owl.Grasshopper.Components.Solvers
             List<bool> railingToggles = new List<bool>();
             List<AudienceSetup> audiences = new List<AudienceSetup>();
             List<double> offsets = new List<double>();
+            HallSetup hallSetup = null;
 
             if (!DA.GetData(0, ref tribune) || tribune == null) return;
             if (!DA.GetData(1, ref stairs) || stairs == null) return;
@@ -66,46 +73,56 @@ namespace Owl.Grasshopper.Components.Solvers
             DA.GetDataList(5, railingToggles);
             DA.GetDataList(6, audiences);
             DA.GetDataList(7, offsets);
+            DA.GetData(8, ref hallSetup);
 
             TribuneSolver solver = new TribuneSolver(tribune, stairs, railings);
-            Curve tripP;
-            Curve stairsP;
-            List<Curve> railsP;
-            List<Point3d> railMidpoints;
+
             SerializedTribune strib;
-            List<Line> tribRows;
-            List<Point3d> rowSpine;
-            List<List<Curve>> chairs;
-            List<List<Line>> limits;
+            Curve secTrib, secStairs;
+            List<Curve> secRails;
+            List<Point3d> secRailSpine;
+            List<Point3d> secRowSpine;
+            List<List<Curve>> secChairs;
+            List<List<Line>> secLimits;
+            List<Curve> planTrib;
+            List<Curve> planStairs;
+            List<Curve> planRails;
+            List<Curve> planRailSpine;
+            List<List<Curve>> planChairs;
 
             solver.Solve(
-                out tripP, out stairsP, out railsP, out railMidpoints,
-                out strib, out tribRows, out rowSpine,
-                out chairs, out limits,
-                flip, origin, railingToggles, audiences, offsets);
+                out strib, out secTrib, out secStairs,
+                out secRails, out secRailSpine, out secRowSpine,
+                out secChairs, out secLimits,
+                out planTrib, out planStairs, out planRails, out planRailSpine, out planChairs,
+                flip, origin, railingToggles, audiences, offsets, hallSetup);
 
             // Convert to DataTrees
             var chairTree = new DataTree<Curve>();
-            for (int i = 0; i < chairs.Count; i++)
-            {
-                chairTree.AddRange(chairs[i], new GH_Path(i));
-            }
+            for (int i = 0; i < secChairs.Count; i++)
+                chairTree.AddRange(secChairs[i], new GH_Path(i));
 
             var limitTree = new DataTree<Line>();
-            for (int i = 0; i < limits.Count; i++)
-            {
-                limitTree.AddRange(limits[i], new GH_Path(i));
-            }
+            for (int i = 0; i < secLimits.Count; i++)
+                limitTree.AddRange(secLimits[i], new GH_Path(i));
 
-            DA.SetData(0, tripP);
-            DA.SetData(1, stairsP);
-            DA.SetDataList(2, railsP);
-            DA.SetDataList(3, railMidpoints);
-            DA.SetDataList(4, tribRows);
-            DA.SetDataList(5, rowSpine);
+            var planChairTree = new DataTree<Curve>();
+            for (int i = 0; i < planChairs.Count; i++)
+                planChairTree.AddRange(planChairs[i], new GH_Path(i));
+
+            DA.SetData(0, strib);
+            DA.SetData(1, secTrib);
+            DA.SetData(2, secStairs);
+            DA.SetDataList(3, secRails);
+            DA.SetDataList(4, secRailSpine);
+            DA.SetDataList(5, secRowSpine);
             DA.SetDataTree(6, chairTree);
             DA.SetDataTree(7, limitTree);
-            DA.SetData(8, strib);
+            DA.SetDataList(8, planTrib);
+            DA.SetDataList(9, planStairs);
+            DA.SetDataList(10, planRails);
+            DA.SetDataList(11, planRailSpine);
+            DA.SetDataTree(12, planChairTree);
         }
 
         protected override System.Drawing.Bitmap Icon
