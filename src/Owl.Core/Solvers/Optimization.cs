@@ -45,21 +45,18 @@ namespace Owl.Core.Solvers
                 return -10000.0; // Invalid layout
 
             // 2. Analyze Sightlines & Projector
-            Analysis.Calculate(
+            var analysisResult = Analysis.Calculate(
                 audiences,
                 serializedTribune,
+                null, // RailingSetup
                 screen,
                 projector,
                 audienceOffsets,
-                null, // PlanSetup
-                out List<Line> sightlines,
-                out _, // limitLines
-                out Brep projectorCone,
-                out _, // placedChairs
-                out _, // planTribune
-                out _, // planRailings
-                out _  // planStairs
+                null // PlanSetup
             );
+            
+            var sightlines = analysisResult.Sightlines;
+            var projectorCone = analysisResult.ProjectorCone;
 
             // 3. Calculate Fitness
             double fitness = 0.0;

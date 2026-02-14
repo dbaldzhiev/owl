@@ -42,6 +42,9 @@ namespace Owl.Core.Solvers
             double currX = 0.0;
             double currZ = 0.0;
 
+            var risers = new List<Curve>();
+            var treads = new List<Curve>();
+
             // Start point
             tribPts.Add(new Point3d(currX, 0, currZ));
 
@@ -63,6 +66,9 @@ namespace Owl.Core.Solvers
             rowPoints.Add(r0Start);
             rrInt.Add(r0Start);
             tribRows.Add(new Line(new Point3d(currX, 0, currZ), r0End)); // Physical row starts at currX
+            
+            // Tread 0
+            treads.Add(new Line(new Point3d(currX, 0, currZ), new Point3d(currX + row0Width, 0, currZ)).ToNurbsCurve());
 
             currX += getRowWidth(0);
             tribPts.Add(new Point3d(currX, 0, currZ));
@@ -87,8 +93,11 @@ namespace Owl.Core.Solvers
                 double thisRowWidth = getRowWidth(r);
 
                 // 1. Riser UP
+                Point3d riserStart = new Point3d(currX, 0, currZ);
                 currZ += rowRise;
-                tribPts.Add(new Point3d(currX, 0, currZ));
+                Point3d riserEnd = new Point3d(currX, 0, currZ);
+                tribPts.Add(riserEnd);
+                risers.Add(new Line(riserStart, riserEnd).ToNurbsCurve());
 
                 // Capture Row Data (Front of Row r)
                 double railW = _railings.RailWidth;
@@ -127,14 +136,17 @@ namespace Owl.Core.Solvers
                 }
 
                 // 2. Tread FORWARD
+                Point3d treadStart = new Point3d(currX, 0, currZ);
                 currX += thisRowWidth;
-                tribPts.Add(new Point3d(currX, 0, currZ));
+                Point3d treadEnd = new Point3d(currX, 0, currZ);
+                tribPts.Add(treadEnd);
+                treads.Add(new Line(treadStart, treadEnd).ToNurbsCurve());
             }
 
             if (tribPts.Count > 1)
                 tribuneProfile = new Polyline(tribPts).ToNurbsCurve();
             
-            serializedTribune = new SerializedTribune(rowPoints, gaps);
+            serializedTribune = new SerializedTribune(rowPoints, gaps, false, risers, treads);
 
             // -----------------------------
             // B) STAIRS PROFILE
@@ -268,49 +280,45 @@ namespace Owl.Core.Solvers
             // -----------------------------
             // C) FLIP LOGIC
             // -----------------------------
+            serializedTribune.StairPoints = new List<Point3d>(stairPts);
+
+            // -----------------------------
+            // C) FLIP LOGIC
+            // -----------------------------
+            // Populate SerializedTribune with profiles
+            // Ensure we handle nulls if profiles weren't generated?
+            // The solver outputs them, so just pass them.
+            serializedTribune = new SerializedTribune(rowPoints, gaps, false, risers, treads, stairPts, tribuneProfile, stairsProfile, railingProfiles);
+
             if (flip)
             {
-                var mirror = Transform.Mirror(Plane.WorldYZ);
-
-                if (tribuneProfile != null) tribuneProfile.Transform(mirror);
-                if (stairsProfile != null) stairsProfile.Transform(mirror);
-                
-                foreach (var rv in railingProfiles)
-                {
-                    if (rv != null) rv.Transform(mirror);
-                }
-
-                // Flip Rows
-                for (int i = 0; i < tribRows.Count; i++)
-                {
-                    var ln = tribRows[i];
-                    ln.Transform(mirror);
-                    tribRows[i] = ln;
-                }
-
-                // Flip Points
-                for (int i = 0; i < rrInt.Count; i++)
-                {
-                    var pt = rrInt[i];
-                    pt.Transform(mirror);
-                    rrInt[i] = pt;
-                }
-                
-                // Update Serialized Tribune Points
-                var newRowPoints = new List<Point3d>();
-                foreach (var pt in serializedTribune.RowPoints)
-                {
-                    var p = pt;
-                    p.Transform(mirror);
-                    newRowPoints.Add(p);
-                }
-                serializedTribune.RowPoints = newRowPoints;
                 serializedTribune.Flip = true;
+                double x_mirror = origin.X;
+                var transform = Transform.Mirror(new Plane(new Point3d(x_mirror, 0, 0), Vector3d.YAxis, Vector3d.ZAxis));
+                
+                // Flip Logic for Lists
+                for (int i = 0; i < serializedTribune.RowPoints.Count; i++)
+                {
+                    var p = serializedTribune.RowPoints[i];
+                    p.Transform(transform);
+                    serializedTribune.RowPoints[i] = p;
+                }
+                // Flip Risers/Treads
+                foreach (var c in serializedTribune.Risers) c?.Transform(transform);
+                foreach (var c in serializedTribune.Treads) c?.Transform(transform);
+                // Flip StairPoints
+                for (int i = 0; i < serializedTribune.StairPoints.Count; i++)
+                {
+                    var p = serializedTribune.StairPoints[i];
+                    p.Transform(transform);
+                    serializedTribune.StairPoints[i] = p;
+                }
+                // Flip Profiles
+                if (serializedTribune.TribuneProfile != null) serializedTribune.TribuneProfile.Transform(transform);
+                if (serializedTribune.StairsProfile != null) serializedTribune.StairsProfile.Transform(transform);
+                foreach (var c in serializedTribune.RailingProfiles) c?.Transform(transform);
             }
 
-            // -----------------------------
-            // D) ORIGIN TRANSLATION
-            // -----------------------------
             if (origin != Point3d.Origin)
             {
                 var move = Transform.Translation(new Vector3d(origin));
@@ -346,6 +354,16 @@ namespace Owl.Core.Solvers
                     movedRowPoints.Add(p);
                 }
                 serializedTribune.RowPoints = movedRowPoints;
+
+                // Move Risers/Treads/StairPoints
+                foreach(var c in serializedTribune.Risers) c.Transform(move);
+                foreach(var c in serializedTribune.Treads) c.Transform(move);
+                for(int i=0; i<serializedTribune.StairPoints.Count; i++)
+                {
+                    var p = serializedTribune.StairPoints[i];
+                    p.Transform(move);
+                    serializedTribune.StairPoints[i] = p;
+                }
             }
         }
     }
