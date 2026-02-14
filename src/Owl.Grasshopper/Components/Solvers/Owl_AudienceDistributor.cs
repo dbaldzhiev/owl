@@ -126,7 +126,19 @@ namespace Owl.Grasshopper.Components.Solvers
                 out planRailings,
                 out planStairs);
 
-            var serializedAnalysis = new SerializedAnalysis(strib, audiences, sightlines, offsets, plan);
+            var serializedAnalysis = new SerializedAnalysis(
+                strib, 
+                audiences, 
+                sightlines, 
+                offsets, 
+                plan,
+                cone,
+                limitLines,
+                sectionChairs,
+                planChairs,
+                planTribune,
+                planRailings,
+                planStairs);
 
             // Convert to DataTrees
             var limitTree = new DataTree<Line>();

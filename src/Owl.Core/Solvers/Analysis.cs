@@ -124,85 +124,111 @@ namespace Owl.Core.Solvers
                     sectionChairs.Add(rowSectionChairs);
 
                     // --- PLAN LOGIC ---
-                    
+            
                     var rowPlanChairs = new List<GeometryBase>();
-                    if (plan != null && plan.TribuneBoundary != null)
+                    
+                    // Use a local flag to skip processing if invalid, but keep lists synced
+                    bool proceedWithPlan = (plan != null && plan.TribuneBoundary != null);
+                    Vector3d planDepthAxis = Vector3d.XAxis;
+                    
+                    if (proceedWithPlan)
                     {
-                        // Mapping Section Space to Plan Space
-                        // Section X -> Plan X
-                        // PlanX = PlanOrigin.X + (SectionPoint.X - SectionOrigin.X)
+                        planDepthAxis = serializedTribune.Flip ? -Vector3d.XAxis : Vector3d.XAxis;
                         
-                        double relX = rowPoint.X - serializedTribune.Origin.X;
-                        double planX = plan.Origin.X + relX;
-                        var bBox = plan.TribuneBoundary.GetBoundingBox(true);
-                        double yMin = bBox.Min.Y - 10000;
-                        double yMax = bBox.Max.Y + 10000;
+                        // 2. Validate Axis Intersects Boundary
+                        Ray3d axisRay = new Ray3d(plan.Origin, planDepthAxis);
+                        var axisIntersections = Rhino.Geometry.Intersect.Intersection.CurveLine(plan.TribuneBoundary, new Line(axisRay.Position, axisRay.Position + planDepthAxis * 100000), 0.001, 0.001);
                         
-                        Line rowLine = new Line(new Point3d(planX, yMin, 0), new Point3d(planX, yMax, 0));
-                        
-                        List<Curve> tunnelEx = plan.TunnelBoundary != null ? new List<Curve> { plan.TunnelBoundary } : null;
-                        List<Curve> aisleEx = plan.AisleBoundaries;
-                        List<Curve> allEx = new List<Curve>();
-                        if (tunnelEx != null) allEx.AddRange(tunnelEx);
-                        if (aisleEx != null) allEx.AddRange(aisleEx);
-                        
-                        var tribSegments = GetClippedSegments(rowLine, new List<Curve> { plan.TribuneBoundary }, tunnelEx);
-                        planTribuneLines.AddRange(tribSegments.Select(s => s.ToNurbsCurve()));
-                        
-                        if (aisleEx != null && aisleEx.Count > 0)
+                        if (axisIntersections == null || axisIntersections.Count == 0)
                         {
-                            var stairSegments = GetClippedSegments(rowLine, aisleEx, tunnelEx);
-                            planStairLines.AddRange(stairSegments.Select(s => s.ToNurbsCurve()));
+                            proceedWithPlan = false;
                         }
-                        
-                        var seatSegments = GetClippedSegments(rowLine, new List<Curve> { plan.TribuneBoundary }, allEx);
-                        planRailingLines.AddRange(seatSegments.Select(s => s.ToNurbsCurve()));
+                    }
 
-                        // Distribute Chairs
-                        if (currentAudience.ChairWidth > 0 && 
-                           (currentAudience.PlanChairBlockId != Guid.Empty || (currentAudience.PlanGeometry != null && currentAudience.PlanGeometry.Count > 0)))
-                        {
-                            foreach (var segment in seatSegments)
-                            {
-                                double len = segment.Length;
-                                int n = (int)Math.Floor(len / currentAudience.ChairWidth);
-                                
-                                if (n > 0)
-                                {
-                                    double totalChairWidth = n * currentAudience.ChairWidth;
-                                    double margin = (len - totalChairWidth) / 2.0;
-                                    
-                                    Vector3d dir = segment.Direction;
-                                    dir.Unitize();
-                                    
-                                    Point3d startPt = segment.From + dir * (margin + currentAudience.ChairWidth / 2.0);
-                                    
-                                    for (int c = 0; c < n; c++)
-                                    {
-                                        Point3d pt = startPt + dir * (c * currentAudience.ChairWidth);
-                                        // Align center
-                                        
-                                        Transform xform = Transform.Translation(pt - currentAudience.PlanOriginPt); // Shift origin to pt
-                                        
-                                        if (currentAudience.PlanChairBlockId != Guid.Empty)
-                                        {
-                                            var instance = new InstanceReferenceGeometry(currentAudience.PlanChairBlockId, xform);
-                                            rowPlanChairs.Add(instance);
-                                        }
-                                        else if (currentAudience.PlanGeometry != null)
-                                        {
-                                            // Copy Geometry
-                                            foreach(var pg in currentAudience.PlanGeometry)
-                                            {
-                                                var dup = pg.Duplicate();
-                                                dup.Transform(xform);
-                                                rowPlanChairs.Add(dup);
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
+                    if (proceedWithPlan)
+                    {
+                         double dX = Math.Abs(rowPoint.X - serializedTribune.Origin.X);
+                         
+                         // Station Point
+                         Point3d stationPoint = plan.Origin + (planDepthAxis * dX);
+                         stationPoint.Z = 0;
+                         
+                         // Row Line in Y direction
+                         var bBox = plan.TribuneBoundary.GetBoundingBox(true);
+                         double yMin = bBox.Min.Y - 10.0;
+                         double yMax = bBox.Max.Y + 10.0;
+                         
+                         Line rowLine = new Line(new Point3d(stationPoint.X, yMin, 0), new Point3d(stationPoint.X, yMax, 0));
+                         
+                         List<Curve> tribInclusions = new List<Curve> { plan.TribuneBoundary };
+                         List<Curve> tunnelEx = plan.TunnelBoundary != null ? new List<Curve> { plan.TunnelBoundary } : null;
+                         List<Curve> aisleEx = plan.AisleBoundaries;
+                         
+                         // 1. Tribune Segments (Valid Row parts) - (Tribune - Tunnel)
+                         var tribSegments = GetClippedSegments(rowLine, tribInclusions, tunnelEx ?? new List<Curve>());
+                         planTribuneLines.AddRange(tribSegments.Select(s => s.ToNurbsCurve()));
+                         
+                         // 2. Stairs (Inside Aisles AND Inside Tribune)
+                         if (aisleEx != null && aisleEx.Count > 0)
+                         {
+                             // Intersect Tribune segments with Aisles
+                             foreach (var tSeg in tribSegments)
+                             {
+                                 var sSegs = GetClippedSegments(tSeg, aisleEx, new List<Curve>());
+                                 planStairLines.AddRange(sSegs.Select(s => s.ToNurbsCurve()));
+                             }
+                         }
+                         
+                         // 3. Chairs and Railings (Tribune - Tunnel - Aisles)
+                         List<Curve> allEx = new List<Curve>();
+                         if (tunnelEx != null) allEx.AddRange(tunnelEx);
+                         if (aisleEx != null) allEx.AddRange(aisleEx);
+                         
+                         // Re-clip original rowLine against (Tribune) minus (Tunnel + Aisles)
+                         var seatSegments = GetClippedSegments(rowLine, tribInclusions, allEx);
+                         planRailingLines.AddRange(seatSegments.Select(s => s.ToNurbsCurve()));
+                         
+                         // Chair Placement
+                         if (currentAudience.ChairWidth > 0.001)
+                         {
+                             foreach (var segment in seatSegments)
+                             {
+                                 double len = segment.Length;
+                                 int count = (int)(len / currentAudience.ChairWidth);
+                                 
+                                 if (count > 0)
+                                 {
+                                     double totalWidth = count * currentAudience.ChairWidth;
+                                     double gap = (len - totalWidth) / 2.0; // margins
+                                     
+                                     Vector3d segDir = segment.Direction;
+                                     segDir.Unitize();
+                                     
+                                     Point3d startP = segment.From + segDir * (gap + currentAudience.ChairWidth/2.0);
+                                     
+                                     for (int k = 0; k < count; k++)
+                                     {
+                                         Point3d pt = startP + segDir * (k * currentAudience.ChairWidth);
+                                         Transform xform = Transform.Translation(pt - Point3d.Origin);
+                                         
+                                         if (currentAudience.PlanChairBlockId != Guid.Empty)
+                                         {
+                                             var instance = new InstanceReferenceGeometry(currentAudience.PlanChairBlockId, xform);
+                                             rowPlanChairs.Add(instance);
+                                         }
+                                         else if (currentAudience.PlanGeometry != null)
+                                         {
+                                              foreach(var geom in currentAudience.PlanGeometry)
+                                              {
+                                                  var dup = geom.Duplicate();
+                                                  dup.Transform(xform);
+                                                  rowPlanChairs.Add(dup);
+                                              }
+                                         }
+                                     }
+                                 }
+                             }
+                         }
                     }
                     planChairs.Add(rowPlanChairs);
                 }
