@@ -51,6 +51,9 @@ namespace Owl.Grasshopper.Components.Solvers
             pManager.AddCurveParameter("PlanRailings", "PlanRails", "Plan railing lines", GH_ParamAccess.list);                     // 10
             pManager.AddCurveParameter("PlanRailingsSpine", "PlanRSpine", "Plan railing spine axis lines", GH_ParamAccess.list);     // 11
             pManager.AddCurveParameter("PlanChairs", "PlanChairs", "Plan chair geometry", GH_ParamAccess.tree);                     // 12
+            pManager.AddPlaneParameter("SecChairPlanes", "SecPln", "Section chair placement planes (one per row)", GH_ParamAccess.list);   // 13
+            pManager.AddPlaneParameter("PlanChairPlanes", "PlanPln", "Plan chair placement planes", GH_ParamAccess.tree);                  // 14
+            pManager.AddCurveParameter("PlanRowSpine", "PlanSpine", "Plan row spine curves used for chair distribution", GH_ParamAccess.tree); // 15
         }
 
         protected override void SolveInstance(IGH_DataAccess DA)
@@ -89,12 +92,17 @@ namespace Owl.Grasshopper.Components.Solvers
             List<Curve> planRails;
             List<Curve> planRailSpine;
             List<List<Curve>> planChairs;
+            List<Plane> secChairPlanes;
+            List<List<Plane>> planChairPlanes;
+            List<List<Curve>> planRowSpineCrvs;
 
             solver.Solve(
                 out strib, out secTrib, out secStairs,
                 out secRails, out secRailSpine, out secRowSpine,
                 out secChairs, out secLimits,
                 out planTrib, out planStairs, out planRails, out planRailSpine, out planChairs,
+                out secChairPlanes, out planChairPlanes,
+                out planRowSpineCrvs,
                 flip, origin, railingToggles, audiences, offsets, hallSetup);
 
             // Convert to DataTrees
@@ -110,6 +118,14 @@ namespace Owl.Grasshopper.Components.Solvers
             for (int i = 0; i < planChairs.Count; i++)
                 planChairTree.AddRange(planChairs[i], new GH_Path(i));
 
+            var planPlaneTree = new DataTree<Plane>();
+            for (int i = 0; i < planChairPlanes.Count; i++)
+                planPlaneTree.AddRange(planChairPlanes[i], new GH_Path(i));
+
+            var planRowSpineTree = new DataTree<Curve>();
+            for (int i = 0; i < planRowSpineCrvs.Count; i++)
+                planRowSpineTree.AddRange(planRowSpineCrvs[i], new GH_Path(i));
+
             DA.SetData(0, strib);
             DA.SetData(1, secTrib);
             DA.SetData(2, secStairs);
@@ -123,6 +139,9 @@ namespace Owl.Grasshopper.Components.Solvers
             DA.SetDataList(10, planRails);
             DA.SetDataList(11, planRailSpine);
             DA.SetDataTree(12, planChairTree);
+            DA.SetDataList(13, secChairPlanes);
+            DA.SetDataTree(14, planPlaneTree);
+            DA.SetDataTree(15, planRowSpineTree);
         }
 
         protected override System.Drawing.Bitmap Icon

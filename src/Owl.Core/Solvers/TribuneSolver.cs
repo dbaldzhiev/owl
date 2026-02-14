@@ -36,6 +36,10 @@ namespace Owl.Core.Solvers
             out List<Curve> planRailingLines,
             out List<Curve> planRailingsSpine,
             out List<List<Curve>> planChairs,
+            // Chair placement planes (for block insertion)
+            out List<Plane> secChairPlanes,
+            out List<List<Plane>> planChairPlanes,
+            out List<List<Curve>> planRowSpine,
             // Inputs
             bool flip = false,
             Point3d origin = default,
@@ -60,6 +64,9 @@ namespace Owl.Core.Solvers
             planRailingLines = new List<Curve>();
             planRailingsSpine = new List<Curve>();
             planChairs = new List<List<Curve>>();
+            secChairPlanes = new List<Plane>();
+            planChairPlanes = new List<List<Plane>>();
+            planRowSpine = new List<List<Curve>>();
 
             var gaps = new List<double>();
             var rowPoints = new List<Point3d>();
@@ -429,6 +436,11 @@ namespace Owl.Core.Solvers
                         }
                     }
                     secChairs.Add(rowChairs);
+
+                    // Track placement plane for block insertion
+                    var insertPt = new Point3d(rowPoint.X + xOffsetVec.X, rowPoint.Y + xOffsetVec.Y, rowPoint.Z + xOffsetVec.Z);
+                    var xDir = isFlipped ? -Vector3d.XAxis : Vector3d.XAxis;
+                    secChairPlanes.Add(new Plane(insertPt, xDir, Vector3d.ZAxis));
                 }
             }
 
@@ -698,6 +710,8 @@ namespace Owl.Core.Solvers
                         if (audience == null || audience.PlanChairGeo == null || audience.PlanChairGeo.Count == 0)
                         {
                             planChairs.Add(new List<Curve>());
+                            planChairPlanes.Add(new List<Plane>());
+                            planRowSpine.Add(new List<Curve>());
                             continue;
                         }
 
@@ -716,11 +730,16 @@ namespace Owl.Core.Solvers
                         if (planLine == null)
                         {
                             planChairs.Add(new List<Curve>());
+                            planChairPlanes.Add(new List<Plane>());
+                            planRowSpine.Add(new List<Curve>());
                             continue;
                         }
 
                         // Trim to outside-void segments
                         var segments = trimOutsideVoid(planLine);
+
+                        // Store the row spine curves
+                        planRowSpine.Add(new List<Curve>(segments.Where(s => s != null && s.IsValid)));
 
                         // Compute actual physical width from bounding box of PlanChairGeo
                         double axialWidth = audience.PlanChairWidth > 0 ? audience.PlanChairWidth : 500;
@@ -743,6 +762,7 @@ namespace Owl.Core.Solvers
 
                         // Distribute chairs centered on each segment
                         var rowPlanChairs = new List<Curve>();
+                        var rowPlanPlanes = new List<Plane>();
 
                         foreach (var seg in segments)
                         {
@@ -769,6 +789,9 @@ namespace Owl.Core.Solvers
 
                                 Point3d chairPos = seg.PointAt(t);
 
+                                // Track placement plane
+                                rowPlanPlanes.Add(new Plane(chairPos, Vector3d.XAxis, Vector3d.YAxis));
+
                                 // Place plan chair geo at this position
                                 Vector3d moveVec = chairPos - audience.PlanChairOrigin;
                                 var moveXform = Transform.Translation(moveVec);
@@ -783,6 +806,7 @@ namespace Owl.Core.Solvers
                             }
                         }
                         planChairs.Add(rowPlanChairs);
+                        planChairPlanes.Add(rowPlanPlanes);
                     }
                 }
             }
