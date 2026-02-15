@@ -13,6 +13,12 @@ namespace Owl.Core.Primitives
         public List<bool> RailingToggles { get; set; }
         public List<Point3d> SecRowSpine { get; set; }
 
+        /// <summary>X position where each stair flight begins (one per flight, Rows-1 entries).</summary>
+        public List<double> StairFlightStartX { get; set; }
+
+        /// <summary>X position where each stair flight ends (one per flight, Rows-1 entries).</summary>
+        public List<double> StairFlightEndX { get; set; }
+
         public SerializedTribune()
         {
             RowPoints = new List<Point3d>();
@@ -22,9 +28,20 @@ namespace Owl.Core.Primitives
             Treads = new List<Curve>();
             RailingToggles = new List<bool>();
             SecRowSpine = new List<Point3d>();
+            StairFlightStartX = new List<double>();
+            StairFlightEndX = new List<double>();
         }
 
-        public SerializedTribune(List<Point3d> rowPoints, List<double>? gaps = null, bool flip = false, List<Curve>? risers = null, List<Curve>? treads = null, List<bool>? railingToggles = null, List<Point3d>? secRowSpine = null)
+        public SerializedTribune(
+            List<Point3d> rowPoints,
+            List<double>? gaps = null,
+            bool flip = false,
+            List<Curve>? risers = null,
+            List<Curve>? treads = null,
+            List<bool>? railingToggles = null,
+            List<Point3d>? secRowSpine = null,
+            List<double>? stairFlightStartX = null,
+            List<double>? stairFlightEndX = null)
         {
             RowPoints = rowPoints ?? new List<Point3d>();
             Gaps = gaps ?? new List<double>();
@@ -33,6 +50,8 @@ namespace Owl.Core.Primitives
             Treads = treads ?? new List<Curve>();
             RailingToggles = railingToggles ?? new List<bool>();
             SecRowSpine = secRowSpine ?? new List<Point3d>();
+            StairFlightStartX = stairFlightStartX ?? new List<double>();
+            StairFlightEndX = stairFlightEndX ?? new List<double>();
         }
     }
 }

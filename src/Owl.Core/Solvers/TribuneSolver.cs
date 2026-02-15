@@ -70,6 +70,8 @@ namespace Owl.Core.Solvers
 
             var gaps = new List<double>();
             var rowPoints = new List<Point3d>();
+            var stairStartXList = new List<double>();
+            var stairEndXList = new List<double>();
 
             if (_tribune.Rows <= 0)
             {
@@ -181,7 +183,7 @@ namespace Owl.Core.Solvers
             if (tribPts.Count > 1)
                 secTribune = new Polyline(tribPts).ToNurbsCurve();
 
-            serializedTribune = new SerializedTribune(rowPoints, gaps, railingToggles: resolvedToggles, secRowSpine: secRowSpine);
+            serializedTribune = new SerializedTribune(rowPoints, gaps, railingToggles: resolvedToggles, secRowSpine: secRowSpine, stairFlightStartX: stairStartXList, stairFlightEndX: stairEndXList);
 
             // -----------------------------
             // B) STAIRS PROFILE
@@ -246,6 +248,10 @@ namespace Owl.Core.Solvers
                     }
                 }
 
+                // Store stair flight positions
+                stairStartXList.Add(startX);
+                stairEndXList.Add(cx); // cx is the final X after all steps
+
                 double prevRiserX = currentBaseX - getRowWidth(r);
                 if (r == 0) prevRiserX = 0;
 
@@ -258,8 +264,8 @@ namespace Owl.Core.Solvers
                 double referenceX;
                 if (showRailing || r == 0)
                 {
-                    // With railing (or first row): measure from railing inner face
-                    referenceX = (r == 0) ? _railings.RailWidth : prevRiserX + _railings.RailWidth;
+                    // With railing: measure from railing inner face; first row: from origin
+                    referenceX = (r == 0) ? 0.0 : prevRiserX + _railings.RailWidth;
                 }
                 else
                 {
