@@ -1,113 +1,129 @@
 # OWL — Technical Requirements Document (TRD)
 
-Target Platform: Rhino 8 / Grasshopper (Python 3 Script)
-Language: Python 3
-API: RhinoCommon
-Domain: Auditoriums, Cinemas, Grandstands, Tribune Renovation
+**Target Platform**: Rhino 8 / Grasshopper (.NET 7 Plugin)
+**Language**: C#
+**API**: RhinoCommon (`Rhino.Geometry`), Grasshopper (`Grasshopper.Kernel`)
+**Domain**: Auditoriums, Cinemas, Grandstands, Tribune Renovation
+**Structure**:
+-   `Owl.Core`: Pure C# logic, geometry generation, data structures. No GH dependencies.
+-   `Owl.Grasshopper`: GH Components, UI logic, parameter handling.
 
 ---
 
 ## 0. Core Design Principle
-The plugin is structured as a single Python script (`tribune.py`) containing modular classes that mimic a node-based workflow.
+The plugin is structured as a collection of Grasshopper components that mimic a node-based workflow.
 
-Data flows: `Setup Objects` -> `Solver` -> `Geometry/Data Profiles`.
+Data flows: `Setup Objects` (Params) -> `Solver Components` -> `Geometry/Analysis Data`.
 
 ---
 
 ## 1. Components & Data Structures
 
 ### 1.1 Tribune Setup
-**Component Name:** `tribune`
-**Purpose:** Define the base dimensions and stepping logic of the tribune.
+**Component Name**: `Owl_TribuneSetup`
+**Category**: Owl.Setup
+**Purpose**: Define the base dimensions and stepping logic of the tribune.
 
-**Inputs:**
-- `rows` (int): Number of elevated rows.
-- `row_width` (float): Width/Depth of a single row module.
-- `elev` (list[int]): List of step counts per row (e.g., [2, 2, 2] means each row rises by 2 steps).
+**Inputs**:
+-   `Row Count` (int): Number of elevated rows.
+-   `Row Depth` (float): Depth of a single row module.
+-   `Row Elevation Steps` (list[int]): List of step counts per row (e.g., [2, 2, 2] means each row rises by 2 steps).
 
-**Outputs:**
-- `tribune_setup`: A data object containing the above configuration.
+**Outputs**:
+-   `TribuneSetup`: A data object containing the above configuration.
 
 ### 1.2 Stairs Setup
-**Component Name:** `stairs`
-**Purpose:** Define the dimensions of the steps (risers and treads).
+**Component Name**: `Owl_StairSetup`
+**Category**: Owl.Setup
+**Purpose**: Define the dimensions of the steps (risers and treads).
 
-**Inputs:**
-- `tread_h` (float): Height of one riser.
-- `tread_w` (float): Depth of one tread step.
+**Inputs**:
+-   `Riser Height` (float): Height of one riser.
+-   `Tread Depth` (float): Depth of one tread step.
 
-**Outputs:**
-- `stair_setup`: A data object containing step dimensions.
+**Outputs**:
+-   `StairSetup`: A data object containing step dimensions.
 
 ### 1.3 Railings Setup
-**Component Name:** `railings`
-**Purpose:** Define railing dimensions.
+**Component Name**: `Owl_RailingSetup`
+**Category**: Owl.Setup
+**Purpose**: Define railing dimensions.
 
-**Inputs:**
-- `rail_h` (float): Height of the railing above the nose of the tread.
-- `rail_w` (float): Width/Thickness of the railing.
+**Inputs**:
+-   `Rail Height` (float): Height of the railing above the nose of the tread.
+-   `Rail Thickness` (float): Width/Thickness of the railing.
 
-**Outputs:**
-- `rail_setup`: A data object containing railing dimensions.
+**Outputs**:
+-   `RailingSetup`: A data object containing railing dimensions.
 
 ### 1.4 Tribune Solver
-**Component Name:** `tribune_solver`
-**Purpose:** Generate the 3D profile curves based on the setup objects.
+**Component Name**: `Owl_TribuneSolver`
+**Category**: Owl.Solvers
+**Purpose**: Generate the 3D geometry based on the setup objects.
 
-**Inputs:**
-- `tribune_setup`
-- `stair_setup`
-- `rail_setup`
+**Inputs**:
+-   `TribuneSetup`
+-   `StairSetup`
+-   `RailingSetup`
 
-**Outputs:**
-- `tribune_profile` (Curve): The section profile of the seating area.
-- `stairs_profile` (Curve): The section profile of the aisle/stairs.
-- `railings_profile` (List[Curve]): Profiles for each railing.
-- `gaps` (float): Free gap calculation (e.g., between railing and stair nosing).
+**Outputs**:
+-   `Tribune Geometry` (Brep/Mesh): The 3D geometry of the tribune.
+-   `Stairs Geometry` (Brep/Mesh): The 3D geometry of the stairs/aisles.
+-   `Railings Geometry` (Brep/Mesh): The 3D geometry of the railings.
+-   `Analysis Data`: Data for use in analysis/validation.
 
 ---
 
-## 2. Placeholder Components
+## 2. Implemented Components (Previously Placeholders)
 
-### 2.1 Audience
-**Purpose:** Define occupant parameters (eye height, head height).
-**Status:** Placeholder.
+### 2.1 Audience Setup
+**Component Name**: `Owl_AudienceSetup`
+**Category**: Owl.Setup
+**Purpose**: Define occupant parameters (eye height, head height, seating preference).
 
-### 2.2 Screen
-**Purpose:** Define cinema screen geometry (width, height, curvature).
-**Status:** Placeholder.
+### 2.2 Recliner Chair
+**Component Name**: `Owl_ReclinerChair`
+**Category**: Owl.Setup
+**Purpose**: Define dimensions and mechanics of recliner seats.
 
-### 2.3 Projector
-**Purpose:** Define projector location and cone.
-**Status:** Placeholder.
+### 2.3 Screen Setup
+**Component Name**: `Owl_ScreenSetup`
+**Category**: Owl.Setup
+**Purpose**: Define cinema screen geometry (width, height, curvature, position).
 
-### 2.4 Analysis
-**Purpose:** Calculate C-values and sightlines.
-**Status:** Placeholder.
+### 2.4 Projector Setup
+**Component Name**: `Owl_ProjectorSetup`
+**Category**: Owl.Setup
+**Purpose**: Define projector location and cone parameters.
+
+### 2.5 Validator / Analysis
+**Component Name**: `Owl_Validator`
+**Category**: Owl.Solvers
+**Purpose**: Calculate C-values, verify sightlines, and validate geometry against safety standards.
 
 ---
 
 ## 3. Geometry Logic (Solver)
 
-- **Tribune Profile:**
-    - Starts at (0,0,0).
-    - Advances by `row_width`.
-    - Rises by `elev[row] * tread_h`.
-    - Must act as a "Trend" line for the stairs.
+-   **Tribune Profile**:
+    -   Starts at origin or specified plane.
+    -   Advances by `Row Depth`.
+    -   Rises by `Elevation Steps * Riser Height`.
+    -   Maintains monotonic elevation.
 
-- **Stairs Profile:**
-    - Typically aligned to the tribune but broken down into `tread_w` and `tread_h` steps.
-    - Start point may need adjustment to align risers correctly with tribune rows.
+-   **Stairs Profile**:
+    -   Aligned to tribune rows but subdivided into `Tread Depth` and `Riser Height` steps.
+    -   Ensures safe walking path.
 
-- **Railings:**
-    - Placed at every major row riser.
-    - Height `rail_h` measured from the *next* tread elevation.
-    - Thickness `rail_w` extends *inwards* onto the current tread.
+-   **Railings**:
+    -   Placed at row edges or designated safety zones.
+    -   Height measured from nosing line.
 
 ---
 
 ## 4. Coding Standards
 
-- **Python 3** features (type hinting, dataclasses) are encouraged.
-- **RhinoCommon** (`import Rhino.Geometry as rg`) is the only geometry library.
-- No external dependencies (pip packages) unless standard library.
+-   **C# / .NET 7**: Modern C# features (records, nullable reference types) encouraged.
+-   **RhinoCommon**: Primary geometry library.
+-   **No External Dependencies**: Minimize external libraries unless necessary for specific features (e.g., JSON serialization).
+-   **Performance**: Logic should be optimized for real-time interaction in Grasshopper.
