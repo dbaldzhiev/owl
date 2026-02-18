@@ -19,7 +19,9 @@ namespace Owl.Core.Visualization
             out List<Curve> outDims,
             out Curve outSafetyArc,
             out List<Curve> outSightlines,
-            out List<Line> outLimits)
+            out List<Line> outLimits,
+            out List<Curve> outChairClDims,
+            out List<Curve> outStairClDims)
         {
             outTrib = new List<Curve>();
             outStairs = new List<Curve>();
@@ -31,6 +33,8 @@ namespace Owl.Core.Visualization
             outSafetyArc = null;
             outSightlines = new List<Curve>();
             outLimits = new List<Line>();
+            outChairClDims = new List<Curve>();
+            outStairClDims = new List<Curve>();
 
             if (solution == null) return;
             
@@ -204,6 +208,35 @@ namespace Owl.Core.Visualization
                                 outLimits.Add(dl);
                             }
                         }
+                    }
+                }
+                
+                // Clearance Dims
+                if (solution.ChairClearanceDims != null)
+                {
+                    foreach(var c in solution.ChairClearanceDims)
+                    {
+                        if(c!=null)
+                        {
+                            var dc = c.DuplicateCurve();
+                            dc.Transform(xform);
+                            outChairClDims.Add(dc);
+                        }
+                        else outChairClDims.Add(null);
+                    }
+                }
+                
+                if (solution.StairClearanceDims != null)
+                {
+                    foreach(var c in solution.StairClearanceDims)
+                    {
+                        if(c!=null)
+                        {
+                            var dc = c.DuplicateCurve();
+                            dc.Transform(xform);
+                            outStairClDims.Add(dc);
+                        }
+                        else outStairClDims.Add(null);
                     }
                 }
             }

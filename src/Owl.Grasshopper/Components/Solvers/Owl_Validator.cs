@@ -46,22 +46,23 @@ namespace Owl.Grasshopper.Components.Solvers
 
             if (!DA.GetData(0, ref solution) || solution == null) return;
 
-            TribuneValidator.Validate(
-                solution,
-                out List<double> landings,
-                out List<double> cc,
-                out List<double> cValues,
-                out List<string> errors,
-                out List<Point3d> clashes
-            );
-
-            // Set Data
-            DA.SetDataList(0, landings);
-            DA.SetDataList(1, cc);
-            DA.SetDataList(2, cValues);
-            DA.SetDataList(3, errors);
-            DA.SetDataList(4, clashes);
+            // Use pre-calculated values from Solution
+            // STAIRS
+            DA.SetDataList(0, solution.StairClearances);
+            
+            // CHAIRS
+            DA.SetDataList(1, solution.ChairClearances);
+            
+            // C-Val (Not calculated yet? Keep placeholder or remove)
+            // DA.SetDataList(2, cValues); 
+            
+            // ERRORS
+            DA.SetDataList(3, solution.Errors);
+            
+            // Clashes
+            DA.SetDataList(4, solution.Clashes);
         }
+
 
         protected override System.Drawing.Bitmap Icon => null;
 

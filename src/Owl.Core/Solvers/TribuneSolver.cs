@@ -373,25 +373,148 @@ namespace Owl.Core.Solvers
                     
                     solution.SectionLimitLines.Add(rowLimits);
 
+                    // ---------------------------------------------------------
+                    // CLEARANCE CALCULATION (Chair)
+                    // ---------------------------------------------------------
+                    // IMPORTANT: Match visual limits!
+                    // startFL = placePt + (forward * aud.SecFL); (Line 363)
+                    Point3d myFront = placePt + (forward * aud.SecFL); 
+                    Point3d obstruction = Point3d.Unset;
+                    
+                    // Detect Row Direction...
+                    int obsIdx = -1;
+                    int count = solution.RowLocalPoints.Count;
+                    
+                    if (count > 1)
+                    {
+                        // Compare first and last row X in Forward direction
+                        // Cast Point3d to Vector3d for dot product with Vector3d
+                        double x0 = ((Vector3d)solution.RowLocalPoints[0]) * forward;
+                        double xN = ((Vector3d)solution.RowLocalPoints[count-1]) * forward;
+                        
+                        bool zeroIsFront = (x0 < xN); // 0 is closer to stage (Front)
+                        
+                        // If 0 is Front:
+                        // Row i: Obstruction is Row i-1 (if i>0).
+                        // If N is Front (Reversed):
+                        // Row i: Obstruction is Row i+1 (if i<N-1).
+                        
+                        if (zeroIsFront)
+                        {
+                            if (i > 0) obsIdx = i - 1;
+                        }
+                        else
+                        {
+                            if (i < count - 1) obsIdx = i + 1;
+                        }
+                    }
+
+                    bool hasRail = (i < solution.RailingToggles.Count && solution.RailingToggles[i]);
+
+                    if (hasRail)
+                    {
+                        // Railing Back is at rowPt (Canonical)
+                         obstruction = rowPt; // rowPt is effectively the railing position (Front of row space)
+                    }
+                    else if (obsIdx != -1)
+                    {
+                         // Previous Chair Hard Back
+                         int prevIdx = obsIdx;
+                         // Access previous placement via Plane Origin
+                         if(prevIdx < solution.SectionChairPlanes.Count)
+                         {
+                             Plane prevPlane = solution.SectionChairPlanes[prevIdx];
+                             var prevAud = audiences[prevIdx % audiences.Count];
+                             if (prevAud != null && prevPlane.IsValid)
+                             {
+                                 // Obstruction = PrevPlace + (Forward * PrevHBL)
+                                 // Matches startHBL logic for that row.
+                                 obstruction = prevPlane.Origin + (forward * prevAud.SecHBL);
+                             }
+                         }
+                    }
+                    
+                    if (obstruction != Point3d.Unset)
+                    {
+                        // Clearance = Space between Obstruction and Front.
+                        // If Forward is +X:
+                        // Obstruction (Back of prev) is Lower X.
+                        // myFront (Front of current) is Higher X.
+                        // Dist = myFront - obstruction.
+                        
+                        // Ensure Positive Distance (Magnitude of vector between them)
+                        double val = (myFront - obstruction) * forward; 
+                        
+                        // If value is negative, it means obstruction is "in front" of front (clash or wrong order).
+                        // We will just store the signed distance for now.
+                        solution.ChairClearances.Add(val);
+                        
+                        // Dim Line (Lifted Z)
+                        // Ensure horizontal line at Current Chair Level (myFront.Z)
+                        // Start: myFront (p2)
+                        // End: obstruction (p1, projected)
+                        // Direction: Front -> Obstruction "space in front of chair"
+                        
+                        Point3d p2 = myFront + Vector3d.ZAxis * 20.0;
+                        Point3d p1 = new Point3d(obstruction.X, obstruction.Y, p2.Z);
+                        
+                        // User wants "IN FRONT OF THE CHAIR"
+                        // Usually means from Chair Front Limit -> Obstruction.
+                        solution.ChairClearanceDims.Add(new LineCurve(p2, p1));
+                        
+                        // DEBUG: Use Clashes to output Points temporarily
+                        solution.Clashes.Add(p1);
+                        solution.Clashes.Add(p2);
+                    }
+                    else
+                    {
+                        solution.ChairClearances.Add(0.0);
+                        solution.ChairClearanceDims.Add(null);
+                    }
+
                     // Sightlines
                     if (screenTarget != Point3d.Unset)
                     {
-                        // Calculate Eye Point in Canonical Space
-                        // EyePoint is relative to aud.SecOriginPlane?
-                        // Usually AudienceSetup has EyePoint as an absolute point 
-                        // relative to the "Unit Chair" at WorldXY?
-                        // Let's assume aud.EyeLocation is in the same space as aud.SecChairGeo.
-                        // So we transform it using `toCanonical`.
-                        
                         Point3d eye = aud.EyeLocation;
                         eye.Transform(toCanonical);
-                        
                         solution.SectionSightlines.Add(new LineCurve(eye, screenTarget));
                     }
                 }
             }
 
 
+            // -----------------------------
+            // STAIR CLEARANCES (From Gaps)
+            // -----------------------------
+            if (solution.Gaps.Count > 0 && solution.StairFlightStartX.Count == solution.Gaps.Count)
+            {
+                solution.StairClearances = new List<double>(solution.Gaps);
+                
+                for(int k=0; k<solution.Gaps.Count; k++)
+                {
+                    double gap = solution.Gaps[k];
+                    double sX = solution.StairFlightStartX[k]; // Flipped if needed
+                    double z = (k < solution.RowPoints.Count) ? solution.RowPoints[k].Z : 0;
+                    
+                    Point3d pStart, pEnd;
+                    if (flip)
+                    {
+                         // Flipped (X negative). Uphill is -X (more negative).
+                         // Gap is before Stair Start (less negative X).
+                         pStart = new Point3d(sX + gap, 0, z+10);
+                         pEnd = new Point3d(sX, 0, z+10);
+                    }
+                    else
+                    {
+                         // Normal (X positive). Uphill is +X (more positive).
+                         // Gap is before Stair Start (less positive X).
+                         pStart = new Point3d(sX - gap, 0, z+10);
+                         pEnd = new Point3d(sX, 0, z+10);
+                    }
+                    solution.StairClearanceDims.Add(new LineCurve(pStart, pEnd));
+                }
+            }
+            
             // -----------------------------
             // F) PLAN GENERATION (Canonical -> Target Plan Frame)
             // -----------------------------

@@ -33,8 +33,15 @@ namespace Owl.Core.Primitives
 
         // Placement Planes (for block insertion or logic)
         public List<Plane> SectionChairPlanes { get; set; } = new List<Plane>();
+
         public List<List<Plane>> PlanChairPlanes { get; set; } = new List<List<Plane>>();
         public List<Curve> SectionSightlines { get; set; } = new List<Curve>();
+        
+        // Validation Data (Computed)
+        public List<double> ChairClearances { get; set; } = new List<double>();
+        public List<double> StairClearances { get; set; } = new List<double>(); // Renamed from Gaps? Or keep Gaps? User asked for StairClearance.
+        public List<Curve> ChairClearanceDims { get; set; } = new List<Curve>();
+        public List<Curve> StairClearanceDims { get; set; } = new List<Curve>();
 
         // Projector/Screen & Clash
         public Point3d SectionProjector { get; set; } = Point3d.Unset;
