@@ -7,7 +7,7 @@ namespace Owl.Core.Primitives
     public class AudienceSetup
     {
         public Point3d EyeLocation { get; set; }
-        public Point3d SecOrigin { get; set; }
+        public Plane SecOriginPlane { get; set; }
         public List<Curve> SecChairGeo { get; set; }
         public double SecFL { get; set; }
         public double SecHBL { get; set; }
@@ -15,39 +15,41 @@ namespace Owl.Core.Primitives
 
         // Plan properties
         public List<Curve> PlanChairGeo { get; set; }
-        public Point3d PlanChairOrigin { get; set; }
+        public Plane PlanChairOriginPlane { get; set; }
         public double PlanChairWidth { get; set; }
 
         public AudienceSetup()
         {
             SecChairGeo = new List<Curve>();
+            SecOriginPlane = Plane.WorldYZ;
             SecFL = 45.0;
             SecHBL = 182.5;
             SecSBL = 200.0;
             PlanChairGeo = new List<Curve>();
-            PlanChairOrigin = Point3d.Origin;
+            PlanChairOriginPlane = Plane.WorldXY;
             PlanChairWidth = 500.0;
         }
 
         public AudienceSetup(
             Point3d eyeLocation,
-            Point3d secOrigin,
-            List<Curve> secChairGeo,
+            Plane secOriginPlane,
+            List<Curve>? secChairGeo = null,
             double secFL = 45.0,
             double secHBL = 182.5,
             double secSBL = 200.0,
-            List<Curve> planChairGeo = null,
-            Point3d planChairOrigin = default,
+            List<Curve>? planChairGeo = null,
+            Plane planChairOriginPlane = default,
             double planChairWidth = 500.0)
         {
             EyeLocation = eyeLocation;
-            SecOrigin = secOrigin;
+            SecOriginPlane = secOriginPlane;
             SecChairGeo = secChairGeo ?? new List<Curve>();
             SecFL = secFL;
             SecHBL = secHBL;
             SecSBL = secSBL;
             PlanChairGeo = planChairGeo ?? new List<Curve>();
-            PlanChairOrigin = planChairOrigin;
+            PlanChairOriginPlane = planChairOriginPlane; // Struct default is invalid, so let's check
+            if (!planChairOriginPlane.IsValid) PlanChairOriginPlane = Plane.WorldXY;
             PlanChairWidth = planChairWidth;
         }
 
@@ -55,13 +57,13 @@ namespace Owl.Core.Primitives
         {
             return new AudienceSetup(
                 EyeLocation,
-                SecOrigin,
+                SecOriginPlane,
                 SecChairGeo?.Select(c => c.DuplicateCurve()).ToList(),
                 SecFL,
                 SecHBL,
                 SecSBL,
                 PlanChairGeo?.Select(c => c.DuplicateCurve()).ToList(),
-                PlanChairOrigin,
+                PlanChairOriginPlane,
                 PlanChairWidth
             );
         }

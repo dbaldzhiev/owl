@@ -49,6 +49,7 @@
 
 Owl components are available under the **Owl** tab in Grasshopper. The workflow typically follows this pattern:
 
-1.  **Setup**: Use components like `TribuneSetup`, `StairSetup`, and `RailingSetup` to define parameters.
-2.  **Solve**: Connect setup objects to `TribuneSolver` to generate geometry.
-3.  **Validate**: Use `Validator` to check for issues and analyze sightlines.
+1.  **Setup**: Use components like `StairTribuneSetup`, `AudienceSetup`, and `HallSetup` to define parameters. `HallSetup` now requires a `SectionFrame` (for the start of the section) and a `PlanFrame` (for the plan origin), allowing decoupled generation.
+2.  **Solver**: The `TribuneSolver` processes these inputs. The `Flip` option now correctly mirrors the tribune across the YZ plane of the SectionFrame.
+3.  **Visualization**: The `Draftsman` component visualizes the solution in Plan or Section mode. It now outputs additional helpers like Dimensions (`DimA`, `DimB`) and Projector Safety Arcs.
+4.  **Validation**: Use `Owl_Validator` to check for geometric compliance (e.g., aisle width, riser height, clearances).nalyze sightlines.

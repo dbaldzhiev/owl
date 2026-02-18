@@ -10,5 +10,10 @@ namespace Owl.Core.Primitives
             TreadHeight = treadHeight;
             TreadWidth = treadWidth;
         }
+
+        public StairSetup Duplicate()
+        {
+            return new StairSetup(TreadHeight, TreadWidth);
+        }
     }
 }

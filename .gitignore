@@ -144,3 +144,34 @@ $RECYCLE.BIN/
 # Build Logs
 build_*.txt
 build_*.log
+
+## [Rhino / Grasshopper]
+*.gha
+*.rhp
+*.bak
+
+## [OS / System]
+# Windows image file caches
+Thumbs.db
+ehthumbs.db
+ehthumbs_vista.db
+
+# Folder config file
+Desktop.ini
+
+# Recycle Bin used on secondary drives
+$RECYCLE.BIN/
+
+# Mac files
+.DS_Store
+.AppleDouble
+.LSOverride
+src/Owl.Core.Tests/bin
+src/Owl.Core.Tests/obj
+src/Owl.Core.Tests/publish
+src/Owl.Core/bin
+src/Owl.Core/obj
+src/Owl.Core/publish
+src/Owl.Grasshopper/bin
+src/Owl.Grasshopper/obj
+src/Owl.Grasshopper/publish

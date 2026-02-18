@@ -127,3 +127,15 @@ Data flows: `Setup Objects` (Params) -> `Solver Components` -> `Geometry/Analysi
 -   **RhinoCommon**: Primary geometry library.
 -   **No External Dependencies**: Minimize external libraries unless necessary for specific features (e.g., JSON serialization).
 -   **Performance**: Logic should be optimized for real-time interaction in Grasshopper.
+
+---
+
+## 5. Testing Requirements (Mandatory)
+-   **Implementation**: A dedicated NUnit test project (`Owl.Core.Tests`) is required.
+-   **Scope**: Extensive, verbose unit tests covering all Core logic.
+-   **Coverage**:
+    -   Valid inputs (Standard cases).
+    -   Edge cases (Nulls, Zero values, Empty lists).
+    -   Transformations (Flip, Origin shifts).
+    -   Data Consistency (Plan vs Section match).
+-   **Style**: Tests should be detailed and self-explanatory. Both happy paths and failure modes must be verified.

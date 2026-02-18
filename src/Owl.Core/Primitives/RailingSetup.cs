@@ -10,5 +10,10 @@ namespace Owl.Core.Primitives
             RailHeight = railHeight;
             RailWidth = railWidth;
         }
+
+        public RailingSetup Duplicate()
+        {
+            return new RailingSetup(RailHeight, RailWidth);
+        }
     }
 }
