@@ -33,6 +33,8 @@ namespace Owl.Grasshopper.Components.Visualization
             pManager.AddCurveParameter("Dims", "Dims", "Dimension lines for clearance", GH_ParamAccess.list);
             pManager.AddCurveParameter("SafetyArc", "SafeArc", "Projector safety zone arc", GH_ParamAccess.item);
             pManager.AddTextParameter("Errors", "Err", "Validation Errors", GH_ParamAccess.list);
+            pManager.AddCurveParameter("Sightlines", "Sight", "Sightlines from chair eye to screen bottom", GH_ParamAccess.list);
+            pManager.AddLineParameter("Limits", "Lims", "Chair Limits (FL, HBL, SBL)", GH_ParamAccess.list);
         }
 
         protected override void SolveInstance(IGH_DataAccess DA)
@@ -60,7 +62,9 @@ namespace Owl.Grasshopper.Components.Visualization
                 out List<Plane> outFrames, 
                 out Brep outCone,
                 out List<Curve> outDims,
-                out Curve outSafetyArc
+                out Curve outSafetyArc,
+                out List<Curve> outSightlines,
+                out List<Line> outLimits
             );
 
             // Set Data
@@ -72,6 +76,8 @@ namespace Owl.Grasshopper.Components.Visualization
             if (outCone != null) DA.SetData(5, outCone);
             DA.SetDataList(6, outDims);
             if (outSafetyArc != null) DA.SetData(7, outSafetyArc);
+            DA.SetDataList(9, outSightlines);
+            DA.SetDataList(10, outLimits);
         }
 
         protected override System.Drawing.Bitmap Icon => null;

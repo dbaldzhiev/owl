@@ -261,9 +261,58 @@ namespace Owl.Core.Solvers
             }
 
 
-            // Generate Section Chairs (Canonical)
+            // -----------------------------
+            // D) PROJECTOR & SCREEN (Canonical Generation - Early for Sightlines)
+            // -----------------------------
+            // We need these before generating chairs to calculate sightlines.
+            if (hallSetup != null)
+            {
+                 // Canonical Target: WorldXZ (X=Run, Z=Rise). matches Tribune profile.
+                 Plane canTarget = new Plane(Point3d.Origin, Vector3d.XAxis, Vector3d.ZAxis);
+                 
+                 // Map: SectionFrame -> Canonical.
+                 Transform toCan = Transform.PlaneToPlane(hallSetup.SectionFrame, canTarget);
+
+                 // Transform mirror = flip ? Transform.Mirror(Plane.WorldYZ) : Transform.Identity; // Already defined above
+
+                 if (hallSetup.ProjectorLocation != Point3d.Unset)
+                 {
+                     Point3d projOnSec = hallSetup.SectionFrame.ClosestPoint(hallSetup.ProjectorLocation);
+                     projOnSec.Transform(toCan);
+                     if(flip) projOnSec.Transform(mirror);
+                     solution.SectionProjector = projOnSec;
+                 }
+                     
+                 if (hallSetup.ScreenCurve != null)
+                 {
+                     var sc = Curve.ProjectToPlane(hallSetup.ScreenCurve, hallSetup.SectionFrame);
+                     sc.Transform(toCan);
+                     if(flip) sc.Transform(mirror);
+                     solution.SectionScreen = sc;
+                 }
+            }
+
+
+            // -----------------------------
+            // E) SECTION CHAIRS & SIGHTLINES (Canonical)
+            // -----------------------------
             if (audiences != null && audiences.Count > 0)
             {
+                // Find Screen Bottom Z (lowest point) if screen exists
+                Point3d screenTarget = Point3d.Unset;
+                if (solution.SectionScreen != null)
+                {
+                    // Assuming vertical screen or similar, find min Z point.
+                    // Or Start/End. Let's use bounding box min Z.
+                    var bbox = solution.SectionScreen.GetBoundingBox(true);
+                    // Find point on curve closest to bbox min z?
+                    // Let's iterate vertices if polyline, or just use PointAtStart/End?
+                    // Usually screen is vertical line. Lower point.
+                    Point3d p1 = solution.SectionScreen.PointAtStart;
+                    Point3d p2 = solution.SectionScreen.PointAtEnd;
+                    screenTarget = (p1.Z < p2.Z) ? p1 : p2;
+                }
+
                 for (int i = 0; i < solution.RowLocalPoints.Count; i++)
                 {
                     var aud = audiences[i % audiences.Count];
@@ -277,29 +326,11 @@ namespace Owl.Core.Solvers
                     Point3d rowPt = solution.RowLocalPoints[i];
                     double offsetVal = (audienceOffsets != null && i < audienceOffsets.Count) ? audienceOffsets[i] : 0;
                     
-                    // Canonical Orientation (Already Flipped if needed):
-                    // Row is at rowPt.
-                    // Forward is WorldXY (+X) if NOT flipped, (-X) if flipped.
-                    // We need to place chair.
-                    // Origin: rowPt + (offset * ForwardDirection?)
-                    // Wait. rowPt is already transformed by mirror.
-                    // Offset: Standard audience offset is "Front to Back".
-                    // If Flipped, "Back" is -X.
-                    // So we add offset along local forward logic.
-                    
                     Vector3d forward = flip ? -Vector3d.XAxis : Vector3d.XAxis;
                     Vector3d yDir = flip ? Vector3d.YAxis : -Vector3d.YAxis; 
                     
                     Point3d placePt = rowPt + (forward * offsetVal);
-                    
-                    // Construct Target Plane (Canonical)
-                    // If Flipped: XAxis = -X, YAxis = -Y -> Cross(-X, -Y) = Z (Up).
-                    // If Normal:  XAxis = X,  YAxis = Y  -> Cross(X, Y) = Z (Up).
-                    Plane placePlane = new Plane(placePt, forward, yDir); 
-                    
-                    // Checks out: Normal is consistently Z-up.
-                    // Audience Source: SecOriginPlane.
-                    // Map: Source -> Target.
+                    Plane placePlane = new Plane(placePt, forward, Vector3d.ZAxis); 
                     
                     Transform toCanonical = Transform.PlaneToPlane(aud.SecOriginPlane, placePlane);
                     
@@ -316,15 +347,54 @@ namespace Owl.Core.Solvers
                     
                     solution.SectionChairPlanes.Add(placePlane);
                     solution.SectionChairs.Add(rowChairs);
+
+                    // Limits (Vertical Lines relative to Chair Frame)
+                    // Config:
+                    // FL: Positive X (Front)
+                    // HBL: Positive X (Back)
+                    // SBL: Positive X (Back)
+                    // Extrusion: Up (Y in Chair Frame, Z in World)
+                    
+                    List<Line> rowLimits = new List<Line>();
+                    double extLen = 100.0;
+                    Vector3d upVec = Vector3d.ZAxis; // Always Z in Canonical
+                    
+                    // FL
+                    Point3d startFL = placePt + (forward * aud.SecFL);
+                    rowLimits.Add(new Line(startFL, startFL + (upVec * extLen)));
+                    
+                    // HBL
+                    Point3d startHBL = placePt + (forward * aud.SecHBL);
+                    rowLimits.Add(new Line(startHBL, startHBL + (upVec * extLen)));
+                    
+                    // SBL
+                    Point3d startSBL = placePt + (forward * aud.SecSBL);
+                    rowLimits.Add(new Line(startSBL, startSBL + (upVec * extLen)));
+                    
+                    solution.SectionLimitLines.Add(rowLimits);
+
+                    // Sightlines
+                    if (screenTarget != Point3d.Unset)
+                    {
+                        // Calculate Eye Point in Canonical Space
+                        // EyePoint is relative to aud.SecOriginPlane?
+                        // Usually AudienceSetup has EyePoint as an absolute point 
+                        // relative to the "Unit Chair" at WorldXY?
+                        // Let's assume aud.EyeLocation is in the same space as aud.SecChairGeo.
+                        // So we transform it using `toCanonical`.
+                        
+                        Point3d eye = aud.EyeLocation;
+                        eye.Transform(toCanonical);
+                        
+                        solution.SectionSightlines.Add(new LineCurve(eye, screenTarget));
+                    }
                 }
             }
 
 
-
             // -----------------------------
-            // D) PLAN GENERATION (Canonical -> Target Plan Frame)
+            // F) PLAN GENERATION (Canonical -> Target Plan Frame)
             // -----------------------------
-            // Note: GeneratePlan also needs to work in Canonical.
             if (hallSetup != null && hallSetup.TribuneBoundary != null && hallSetup.TribuneBoundary.IsValid)
             {
                 GeneratePlan(solution, hallSetup, audiences, audienceOffsets, tol, flip);
@@ -334,44 +404,6 @@ namespace Owl.Core.Solvers
             solution.Audiences = audiences ?? new List<AudienceSetup>();
             solution.AudienceOffsets = audienceOffsets ?? new List<double>();
             
-            // Extras
-            if (hallSetup != null)
-            {
-                if (hallSetup.ProjectorLocation != Point3d.Unset)
-                     solution.SectionProjector = hallSetup.SectionFrame.ClosestPoint(hallSetup.ProjectorLocation); // Remains in Frame for now? Or Map to Canonical?
-                     // Visualizer expects SectionProjector to be handled.
-                     // IMPORTANT: SectionProjector is a Point3d.
-                     // If we want Visualizer to draw it in Section Frame, we should ensure consistent logic.
-                     // The Visualizer will Map Canonical -> Section Frame.
-                     // So we should Map World Projector -> Canonical Section Frame.
-                     // Inverse of "Canonical -> Section Frame".
-                     
-                     // Plane canSec = Plane.WorldXZ; // ERROR
-                     // Just use Plane.WorldXY as base.
-                     Plane canSec = Plane.WorldXY;
-
-                     // Map: SectionFrame -> WorldXY.
-                     Transform toCan = Transform.PlaneToPlane(hallSetup.SectionFrame, canSec);
-                     
-                     // Projector is in World 3D (HallSetup).
-                     // We project it to Section Frame.
-                     Point3d projOnSec = hallSetup.SectionFrame.ClosestPoint(hallSetup.ProjectorLocation);
-                     // Then map to Canonical?
-                     projOnSec.Transform(toCan);
-                     if(flip) projOnSec.Transform(Transform.Mirror(Plane.WorldYZ));
-                     
-                     solution.SectionProjector = projOnSec;
-                     
-                if (hallSetup.ScreenCurve != null)
-                {
-                     // Same logic.
-                     var sc = Curve.ProjectToPlane(hallSetup.ScreenCurve, hallSetup.SectionFrame);
-                     sc.Transform(toCan);
-                     if(flip) sc.Transform(Transform.Mirror(Plane.WorldYZ));
-                     solution.SectionScreen = sc;
-                }
-            }
-
             solution.IsValid = true;
             return solution;
         }
@@ -485,36 +517,26 @@ namespace Owl.Core.Solvers
                 if(r < solution.RailingToggles.Count && solution.RailingToggles[r])
                 {
                     double cx = solution.RowLocalPoints[r].X;
-                    // Determine direction of "depth".
-                    // If flipped, Row grows to -X. Railing usually inside depth.
-                    // Previous logic: cx - rW/2.0 ? 
+                    // Move center "forward" (away from row start/riser?)
+                    // Current RowLocalPoint is at "Start" (currX + railW).
+                    // Railing occupies [Start-W, Start].
+                    // Center needs to be at Start - W/2.
                     
-                    // Actually Railing Spine in Section was at `cx + railW/2`.
-                    // But Plan Railing usually marks the edge?
-                    // Let's stick to simple offset logic:
-                    // If flipped (X is negative), we might need +rW/2 ?
+                    // If flip (X negative): Start is at -X. Forward is -X.
+                    // Start - (-Forward * W/2)? No.
+                    // Start is more negative.
+                    // Railing [Start, Start + W] (towards origin)?
+                    // Section Logic: [currX, currX+W]. RowPoint = currX+W.
+                    // So Railing is [RowPoint-W, RowPoint]. Center = RowPoint - W/2.
                     
-                    // Let's use signed width.
-                    // If solution.Flipped, X is negative.
-                    // RowLocalPoints[r].X corresponds to "Start".
-                    // Depending on `RectFromSpine` logic.
+                    // IF FLIPPED:
+                    // Section Logic: [-currX-W, -currX]. RowPoint = -currX-W.
+                    // Railing is [RowPoint, RowPoint+W]. Center = RowPoint + W/2.
                     
-                    double offset = flip ? rW/2.0 : -rW/2.0; // Heuristic
-                    // Actually, if we generated points...
-                    // Let's just use the "Railing X" derived from Section?
-                    // SectionRailingsSpine contains (X, 0, Z).
-                    // We can use that X!
+                    double offset = flip ? rW/2.0 : -rW/2.0; 
+                    double targetX = cx + offset;
                     
-                    // But SectionRailingsSpine might match rows differently.
-                    // Let's use simple logic: at RowLocalPoint X.
-                    
-                    // Adjust X slightly inward?
-                    double x = cx + (flip ? rW/2.0 : -rW/2.0); // Move "back" half width?
-                    // Actually, let's just use cx. The RectFromSpine takes width.
-                    // It offsets +/- width/2.
-                    // So centered at cx.
-                    
-                    var ln = getPlanLineAtX(cx);
+                    var ln = getPlanLineAtX(targetX);
                     if(ln!=null)
                     {
                         var segs = keepOutside(ln);

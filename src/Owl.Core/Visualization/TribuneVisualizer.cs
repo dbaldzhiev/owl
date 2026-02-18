@@ -17,7 +17,9 @@ namespace Owl.Core.Visualization
             out List<Plane> outFrames,
             out Brep outProjectorCone,
             out List<Curve> outDims,
-            out Curve outSafetyArc)
+            out Curve outSafetyArc,
+            out List<Curve> outSightlines,
+            out List<Line> outLimits)
         {
             outTrib = new List<Curve>();
             outStairs = new List<Curve>();
@@ -27,6 +29,8 @@ namespace Owl.Core.Visualization
             outProjectorCone = null;
             outDims = new List<Curve>();
             outSafetyArc = null;
+            outSightlines = new List<Curve>();
+            outLimits = new List<Line>();
 
             if (solution == null) return;
             
@@ -122,30 +126,43 @@ namespace Owl.Core.Visualization
                     Point3d p1 = s.PointAtStart;
                     Point3d p2 = s.PointAtEnd;
                     
-                    // Cone
-                    var lines = new List<Curve> { new LineCurve(p, p1), s.DuplicateCurve(), new LineCurve(p2, p) };
-                    var joined = Curve.JoinCurves(lines);
-                    if (joined != null && joined.Length > 0 && joined[0].IsClosed)
+                    // 1. Projection Triangle (Planar Brep)
+                    // Create simple triangle P -> P1 -> P2 -> P
+                    var lines = new List<Curve> { new LineCurve(p, p1), new LineCurve(p1, p2), new LineCurve(p2, p) };
+                    var loop = Curve.JoinCurves(lines);
+                    if (loop != null && loop.Length > 0 && loop[0].IsClosed)
                     {
-                        var breps = Brep.CreatePlanarBreps(joined[0], 0.001);
+                        var breps = Brep.CreatePlanarBreps(loop[0], 0.001);
                         if (breps != null && breps.Length > 0) outProjectorCone = breps[0];
                     }
 
-                    // Safety Arc (r=200, +10 extension)
+                    // 2. Safety Arc (R=200, +10 ext)
                     Vector3d v1 = p1 - p;
                     Vector3d v2 = p2 - p;
                     
-                    Plane arcPlane = new Plane(p, v1, v2); 
-
-                    double angle = Vector3d.VectorAngle(v1, v2, arcPlane);
-                    double extAngle = 10.0 / 200.0; // radians
-                    double totalSweep = angle + 2 * extAngle;
-                    
-                    // Arc(Plane, Radius, Angle) starts at XAxis (v1)
-                    var safeArc = new Arc(arcPlane, 200.0, totalSweep);
-                    safeArc.Transform(Transform.Rotation(-extAngle, arcPlane.ZAxis, arcPlane.Origin));
-                    
-                    outSafetyArc = new ArcCurve(safeArc);
+                    // Ensure valid vectors
+                    if (!v1.IsTiny(0.001) && !v2.IsTiny(0.001))
+                    {
+                        // Construct Plane for Arc
+                        // Use X axis along v1.
+                        Plane arcPlane = new Plane(p, v1, v2); 
+                        
+                        double angle = Vector3d.VectorAngle(v1, v2, arcPlane);
+                        double radius = 200.0;
+                        double extension = 10.0;
+                        double extAngle = extension / radius;
+                        
+                        // Arc normally spans [0, angle]. We want [-ext, angle+ext].
+                        double totalSweep = angle + 2 * extAngle;
+                        
+                        // Create Arc starting at X-axis (v1)
+                        Arc arc = new Arc(arcPlane, radius, totalSweep);
+                        
+                        // Rotate back by extAngle to start "before" v1
+                        arc.Transform(Transform.Rotation(-extAngle, arcPlane.ZAxis, arcPlane.Origin));
+                        
+                        outSafetyArc = new ArcCurve(arc);
+                    }
                 }
 
                 // DIMS
@@ -161,6 +178,33 @@ namespace Owl.Core.Visualization
                      {
                          outDims.Add(new LineCurve(transPoly[i], transPoly[i+1]));
                      }
+                }
+
+                // SIGHTLINES
+                if (solution.SectionSightlines != null)
+                {
+                    foreach(var c in solution.SectionSightlines)
+                    {
+                        var dc = c.DuplicateCurve();
+                        dc.Transform(xform);
+                        outSightlines.Add(dc); // Apply same Section Transform
+                    }
+                }
+
+                if (solution.SectionLimitLines != null)
+                {
+                    foreach(var rowLimits in solution.SectionLimitLines)
+                    {
+                        if(rowLimits != null)
+                        {
+                            foreach(var l in rowLimits)
+                            {
+                                var dl = l;
+                                dl.Transform(xform);
+                                outLimits.Add(dl);
+                            }
+                        }
+                    }
                 }
             }
             else // Plan

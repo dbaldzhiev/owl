@@ -34,9 +34,10 @@ namespace Owl.Core.Primitives
         // Placement Planes (for block insertion or logic)
         public List<Plane> SectionChairPlanes { get; set; } = new List<Plane>();
         public List<List<Plane>> PlanChairPlanes { get; set; } = new List<List<Plane>>();
+        public List<Curve> SectionSightlines { get; set; } = new List<Curve>();
 
         // Projector/Screen & Clash
-        public Point3d SectionProjector { get; set; }
+        public Point3d SectionProjector { get; set; } = Point3d.Unset;
         public Curve SectionScreen { get; set; }
         public Curve ExistingTribuneProfile { get; set; }
         public List<Point3d> Clashes { get; set; } = new List<Point3d>();
