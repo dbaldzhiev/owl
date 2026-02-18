@@ -512,7 +512,7 @@ namespace Owl.Core.Solvers
             
             // 3. Railings
             double rW = _railings.RailWidth;
-            for(int r=0; r<solution.RowLocalPoints.Count; r++)
+            for(int r=1; r<solution.RowLocalPoints.Count; r++) // Skip Row 0 (Front Row)
             {
                 if(r < solution.RailingToggles.Count && solution.RailingToggles[r])
                 {
