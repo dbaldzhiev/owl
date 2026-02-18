@@ -23,7 +23,8 @@ namespace Owl.Core.Solvers
             List<bool> railingToggles = null,
             List<AudienceSetup> audiences = null,
             List<double> audienceOffsets = null,
-            HallSetup hallSetup = null)
+            HallSetup hallSetup = null,
+            DisabledSeatsSetup disabledSeats = null)
         {
             var solution = new TribuneSolution();
             solution.Flipped = flip;
@@ -520,7 +521,7 @@ namespace Owl.Core.Solvers
             // -----------------------------
             if (hallSetup != null && hallSetup.TribuneBoundary != null && hallSetup.TribuneBoundary.IsValid)
             {
-                GeneratePlan(solution, hallSetup, audiences, audienceOffsets, tol, flip);
+                GeneratePlan(solution, hallSetup, audiences, audienceOffsets, tol, flip, disabledSeats);
             }
             
             // Store Inputs
@@ -537,7 +538,8 @@ namespace Owl.Core.Solvers
             List<AudienceSetup> audiences,
             List<double> audienceOffsets,
             double tol,
-            bool flip)
+            bool flip,
+            DisabledSeatsSetup disabledSeats)
         {
             // Plan Logic:
             // 1. Map Hall Boundaries to Canonical (WorldXY).
@@ -677,61 +679,199 @@ namespace Owl.Core.Solvers
             {
                for (int i = 0; i < solution.RowLocalPoints.Count; i++)
                {
-                   var aud = audiences[i % audiences.Count];
-                   if (aud == null || aud.PlanChairGeo == null) continue;
+                   var aud = audiences[i % audiences.Count]; // Default audience for this row
+                   if (aud == null) continue;
                    
                    double baseX = solution.RowLocalPoints[i].X;
                    double offVal = (audienceOffsets != null && audienceOffsets.Count >i) ? audienceOffsets[i] : 0;
-                   
-                   // Direction of offset: Forward.
-                   // If Flip, Forward is -X.
                    double targetX = baseX + (flip ? -offVal : offVal);
+                   Vector3d forward = flip ? -Vector3d.XAxis : Vector3d.XAxis;
                    
                    var ln = getPlanLineAtX(targetX);
                    if (ln != null)
                    {
                        var segments = keepOutside(ln);
-                       var rowChairs = new List<Curve>();
-                       var rowPlanes = new List<Plane>();
-                       
-                       double cw = aud.PlanChairWidth;
-                       Vector3d forward = flip ? -Vector3d.XAxis : Vector3d.XAxis;
-                       
-                       foreach(var seg in segments)
+                       if (segments == null || segments.Count == 0) continue;
+
+                       // Check for Disabled Seats on Row 0
+                       if (i == 0 && disabledSeats != null && disabledSeats.Count > 0 && disabledSeats.Setup != null)
                        {
-                            if (seg == null) continue;
-                            double len = seg.GetLength();
-                            if (len < cw) continue;
-                            
-                            int N = (int)Math.Floor(len / cw);
-                            double totalSpan = N * cw;
-                            double margin = (len - totalSpan)/2.0;
-                            
-                            for(int k=0; k<N; k++)
-                            {
-                                double tVal = margin + cw * 0.5 + k * cw;
-                                double t;
-                                if (seg.LengthParameter(tVal, out t))
+                           // Special Logic for Row 0
+                           double totalLen = segments.Sum(s => s.GetLength());
+                           double dWidth = disabledSeats.Setup.PlanChairWidth;
+                           double dLen = disabledSeats.Count * dWidth;
+
+                           // Calculate Placement Interval [start, end] on the continuous line
+                           double slack = totalLen - dLen;
+                           // If slack < 0, we center it or just start at 0? 
+                           // "Slide" usually implies we can go out of bounds? 
+                           // Let's assume clamp to distribution logic. 
+                           // If slack is negative, Distribution 0.5 centers the overflow.
+                           
+                           double distParam = disabledSeats.Distribution; // 0..1
+                           double startDist = slack * distParam; 
+                           double endDist = startDist + dLen;
+
+                           double currentDist = 0.0;
+                           
+                           // Helper to fill generic segment
+                           Action<Curve, AudienceSetup> fillSeg = (crv, sSetup) => 
+                           {
+                               if(crv == null) return;
+                               double cw = sSetup.PlanChairWidth;
+                               double len = crv.GetLength();
+                               if (len < cw) return;
+                               
+                               int N = (int)Math.Floor(len / cw);
+                               double totalSpan = N * cw;
+                               double margin = (len - totalSpan)/2.0;
+
+                               var rowChairs = new List<Curve>();
+                               var rowPlanes = new List<Plane>();
+                               
+                               for(int k=0; k<N; k++)
+                               {
+                                   double tVal = margin + cw * 0.5 + k * cw;
+                                   double t;
+                                   if (crv.LengthParameter(tVal, out t))
+                                   {
+                                        Point3d pt = crv.PointAt(t);
+                                        Plane pp = new Plane(pt, forward, Vector3d.YAxis);
+                                        var xform = Transform.PlaneToPlane(sSetup.PlanChairOriginPlane, pp);
+                                        rowPlanes.Add(pp);
+                                        if (sSetup.PlanChairGeo != null)
+                                        {
+                                            foreach(var g in sSetup.PlanChairGeo)
+                                            {
+                                                var d = g.DuplicateCurve();
+                                                d.Transform(xform);
+                                                rowChairs.Add(d);
+                                            }
+                                        }
+                                   }
+                               }
+                               solution.PlanChairs.Add(rowChairs);
+                               solution.PlanChairPlanes.Add(rowPlanes);
+                           };
+
+                           foreach (var seg in segments)
+                           {
+                               var currentSeg = seg;
+                               double segLen = currentSeg.GetLength();
+                               double segStart = currentDist;
+                               double segEnd = currentDist + segLen;
+
+                               // Intersect [segStart, segEnd] with [startDist, endDist]
+                               double overlapStart = Math.Max(segStart, startDist);
+                               double overlapEnd = Math.Min(segEnd, endDist);
+
+                               if (overlapStart < overlapEnd)
+                               {
+                                   // We have disabled section here
+                                   // Pre-Overlap (Standard)
+                                   if (segStart < overlapStart - tol)
+                                   {
+                                       // Split at overlapStart
+                                       double splitLen = overlapStart - segStart;
+                                       double tSplit;
+                                       if(currentSeg.LengthParameter(splitLen, out tSplit))
+                                       {
+                                           var splitRes = currentSeg.Split(tSplit);
+                                           if(splitRes!=null && splitRes.Length>0)
+                                           {
+                                                fillSeg(splitRes[0], aud); // Standard
+                                                currentSeg = splitRes.Last(); // Remainder is the rest
+                                           }
+                                       }
+                                   }
+
+                                   // Now 'currentSeg' starts at overlapStart (conceptually)
+                                   // Fill 'currentSeg' with Disabled up to 'overlapEnd'
+                                   // length of disabled part = overlapEnd - overlapStart
+                                   double splitLenD = overlapEnd - overlapStart;
+                                   
+                                   // We need to verify if currentSeg is long enough (it should be ~splitLenD)
+                                   // If overlapEnd < segEnd, we split again.
+                                   if (overlapEnd < segEnd - tol)
+                                   {
+                                        double tSplitD;
+                                        if(currentSeg.LengthParameter(splitLenD, out tSplitD))
+                                        {
+                                            var splitRes = currentSeg.Split(tSplitD);
+                                            if (splitRes != null && splitRes.Length > 0)
+                                            {
+                                                fillSeg(splitRes[0], disabledSeats.Setup); // Disabled
+                                                fillSeg(splitRes.Last(), aud); // Remainder Standard
+                                            }
+                                        }
+                                        else 
+                                        {
+                                            // Fallback logic?
+                                            fillSeg(currentSeg, disabledSeats.Setup); 
+                                        }
+                                   }
+                                   else
+                                   {
+                                       // Whole rest is disabled
+                                       fillSeg(currentSeg, disabledSeats.Setup);
+                                   }
+                               }
+                               else
+                               {
+                                   // No overlap, purely Standard
+                                   fillSeg(currentSeg, aud);
+                               }
+
+                               currentDist += segLen;
+                           }
+                       }
+                       else
+                       {
+                           // STANDARD LOGIC for other rows or if no disabled seats
+                           var rowChairs = new List<Curve>();
+                           var rowPlanes = new List<Plane>();
+                           
+                           double cw = aud.PlanChairWidth;
+                           
+                           foreach(var seg in segments)
+                           {
+                                if (seg == null) continue;
+                                double len = seg.GetLength();
+                                if (len < cw) continue;
+                                
+                                int N = (int)Math.Floor(len / cw);
+                                double totalSpan = N * cw;
+                                double margin = (len - totalSpan)/2.0;
+                                
+                                for(int k=0; k<N; k++)
                                 {
-                                    Point3d pt = seg.PointAt(t);
-                                    // Plane(Pt, Forward, Y) -> Matches WorldXY or World(-X)Y
-                                    Plane pp = new Plane(pt, forward, Vector3d.YAxis);
-                                    
-                                    var xform = Transform.PlaneToPlane(aud.PlanChairOriginPlane, pp);
-                                    
-                                    rowPlanes.Add(pp); // Canonical
-                                    
-                                    foreach(var g in aud.PlanChairGeo)
+                                    double tVal = margin + cw * 0.5 + k * cw;
+                                    double t;
+                                    if (seg.LengthParameter(tVal, out t))
                                     {
-                                        var d = g.DuplicateCurve();
-                                        d.Transform(xform);
-                                        rowChairs.Add(d);
+                                        Point3d pt = seg.PointAt(t);
+                                        // Plane(Pt, Forward, Y) -> Matches WorldXY or World(-X)Y
+                                        Plane pp = new Plane(pt, forward, Vector3d.YAxis);
+                                        
+                                        var xform = Transform.PlaneToPlane(aud.PlanChairOriginPlane, pp);
+                                        
+                                        rowPlanes.Add(pp); // Canonical
+                                        
+                                        if (aud.PlanChairGeo != null)
+                                        {
+                                            foreach(var g in aud.PlanChairGeo)
+                                            {
+                                                var d = g.DuplicateCurve();
+                                                d.Transform(xform);
+                                                rowChairs.Add(d);
+                                            }
+                                        }
                                     }
                                 }
-                            }
+                           }
+                           solution.PlanChairs.Add(rowChairs);
+                           solution.PlanChairPlanes.Add(rowPlanes);
                        }
-                       solution.PlanChairs.Add(rowChairs);
-                       solution.PlanChairPlanes.Add(rowPlanes);
                    }
                }
             }

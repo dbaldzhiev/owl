@@ -27,11 +27,13 @@ namespace Owl.Grasshopper.Components.Solvers
             pManager.AddGenericParameter("AudienceSetup", "Audience", "Audience Setup List", GH_ParamAccess.list);       // 4
             pManager.AddNumberParameter("AudienceOffsets", "Offsets", "X offsets for chairs per row", GH_ParamAccess.list); // 5
             pManager.AddGenericParameter("HallSetup", "Hall", "Hall Setup for plan generation", GH_ParamAccess.item);     // 6
+            pManager.AddGenericParameter("DisabledSeatsSetup", "DisSeats", "Disabled Seats Configuration (Row 0)", GH_ParamAccess.item); // 7
 
             pManager[3].Optional = true;
             pManager[4].Optional = true;
             pManager[5].Optional = true;
             pManager[6].Optional = true;
+            pManager[7].Optional = true;
         }
 
             protected override void RegisterOutputParams(GH_Component.GH_OutputParamManager pManager)
@@ -57,6 +59,8 @@ namespace Owl.Grasshopper.Components.Solvers
             DA.GetDataList(4, audiences);
             DA.GetDataList(5, offsets);
             DA.GetData(6, ref hallSetup);
+            DisabledSeatsSetup disabledSeats = null;
+            DA.GetData(7, ref disabledSeats);
 
             TribuneSolver solver = new TribuneSolver(stSetup, railings);
 
@@ -65,7 +69,8 @@ namespace Owl.Grasshopper.Components.Solvers
                 railingToggles, 
                 audiences, 
                 offsets, 
-                hallSetup
+                hallSetup,
+                disabledSeats
             );
 
             DA.SetData(0, solution);
