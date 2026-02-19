@@ -24,7 +24,8 @@ namespace Owl.Core.Solvers
             List<AudienceSetup> audiences = null,
             List<double> audienceOffsets = null,
             HallSetup hallSetup = null,
-            DisabledSeatsSetup disabledSeats = null)
+            DisabledSeatsSetup disabledSeats = null,
+            List<int> audienceMap = null)
         {
             var solution = new TribuneSolution();
             solution.Flipped = flip;
@@ -299,16 +300,20 @@ namespace Owl.Core.Solvers
             // -----------------------------
             if (audiences != null && audiences.Count > 0)
             {
+                // Initialize Categorized Collections
+                int typeCount = audiences.Count;
+                solution.CategorizedSectionChairs = new List<List<Curve>>();
+                solution.CategorizedSectionChairPlanes = new List<List<Plane>>();
+                for (int t = 0; t < typeCount; t++)
+                {
+                    solution.CategorizedSectionChairs.Add(new List<Curve>());
+                    solution.CategorizedSectionChairPlanes.Add(new List<Plane>());
+                }
+
                 // Find Screen Bottom Z (lowest point) if screen exists
                 Point3d screenTarget = Point3d.Unset;
                 if (solution.SectionScreen != null)
                 {
-                    // Assuming vertical screen or similar, find min Z point.
-                    // Or Start/End. Let's use bounding box min Z.
-                    var bbox = solution.SectionScreen.GetBoundingBox(true);
-                    // Find point on curve closest to bbox min z?
-                    // Let's iterate vertices if polyline, or just use PointAtStart/End?
-                    // Usually screen is vertical line. Lower point.
                     Point3d p1 = solution.SectionScreen.PointAtStart;
                     Point3d p2 = solution.SectionScreen.PointAtEnd;
                     screenTarget = (p1.Z < p2.Z) ? p1 : p2;
@@ -316,7 +321,24 @@ namespace Owl.Core.Solvers
 
                 for (int i = 0; i < solution.RowLocalPoints.Count; i++)
                 {
-                    var aud = audiences[i % audiences.Count];
+                    // Determine Type for this row
+                    int seatType = -1;
+                    if (i == 0 && disabledSeats != null && disabledSeats.Count > 0)
+                    {
+                        seatType = 0;
+                    }
+                    else if (audienceMap != null && i < audienceMap.Count)
+                    {
+                        seatType = audienceMap[i];
+                    }
+                    else
+                    {
+                        if (audiences.Count > 1) seatType = ((i - 1) % (audiences.Count - 1)) + 1;
+                        else seatType = 0; 
+                    }
+
+                    AudienceSetup aud = (seatType >= 0 && seatType < audiences.Count) ? audiences[seatType] : null;
+
                     if (aud == null) 
                     {
                         solution.SectionChairs.Add(new List<Curve>());
@@ -349,26 +371,27 @@ namespace Owl.Core.Solvers
                     solution.SectionChairPlanes.Add(placePlane);
                     solution.SectionChairs.Add(rowChairs);
 
+                    // Add to categorized lists
+                    if (seatType >= 0 && seatType < solution.CategorizedSectionChairs.Count)
+                    {
+                        solution.CategorizedSectionChairPlanes[seatType].Add(placePlane);
+                        foreach (var c in rowChairs)
+                        {
+                            solution.CategorizedSectionChairs[seatType].Add(c.DuplicateCurve());
+                        }
+                    }
+
                     // Limits (Vertical Lines relative to Chair Frame)
-                    // Config:
-                    // FL: Positive X (Front)
-                    // HBL: Positive X (Back)
-                    // SBL: Positive X (Back)
-                    // Extrusion: Up (Y in Chair Frame, Z in World)
-                    
                     List<Line> rowLimits = new List<Line>();
                     double extLen = 100.0;
-                    Vector3d upVec = Vector3d.ZAxis; // Always Z in Canonical
+                    Vector3d upVec = Vector3d.ZAxis; 
                     
-                    // FL
                     Point3d startFL = placePt + (forward * aud.SecFL);
                     rowLimits.Add(new Line(startFL, startFL + (upVec * extLen)));
                     
-                    // HBL
                     Point3d startHBL = placePt + (forward * aud.SecHBL);
                     rowLimits.Add(new Line(startHBL, startHBL + (upVec * extLen)));
                     
-                    // SBL
                     Point3d startSBL = placePt + (forward * aud.SecSBL);
                     rowLimits.Add(new Line(startSBL, startSBL + (upVec * extLen)));
                     
@@ -377,59 +400,55 @@ namespace Owl.Core.Solvers
                     // ---------------------------------------------------------
                     // CLEARANCE CALCULATION (Chair)
                     // ---------------------------------------------------------
-                    // IMPORTANT: Match visual limits!
-                    // startFL = placePt + (forward * aud.SecFL); (Line 363)
                     Point3d myFront = placePt + (forward * aud.SecFL); 
                     Point3d obstruction = Point3d.Unset;
                     
-                    // Detect Row Direction...
                     int obsIdx = -1;
                     int count = solution.RowLocalPoints.Count;
                     
                     if (count > 1)
                     {
-                        // Compare first and last row X in Forward direction
-                        // Cast Point3d to Vector3d for dot product with Vector3d
                         double x0 = ((Vector3d)solution.RowLocalPoints[0]) * forward;
                         double xN = ((Vector3d)solution.RowLocalPoints[count-1]) * forward;
+                        bool zeroIsFront = (x0 < xN); 
                         
-                        bool zeroIsFront = (x0 < xN); // 0 is closer to stage (Front)
-                        
-                        // If 0 is Front:
-                        // Row i: Obstruction is Row i-1 (if i>0).
-                        // If N is Front (Reversed):
-                        // Row i: Obstruction is Row i+1 (if i<N-1).
-                        
-                        if (zeroIsFront)
-                        {
-                            if (i > 0) obsIdx = i - 1;
-                        }
-                        else
-                        {
-                            if (i < count - 1) obsIdx = i + 1;
-                        }
+                        if (zeroIsFront) { if (i > 0) obsIdx = i - 1; }
+                        else { if (i < count - 1) obsIdx = i + 1; }
                     }
 
                     bool hasRail = (i < solution.RailingToggles.Count && solution.RailingToggles[i]);
 
                     if (hasRail)
                     {
-                        // Railing Back is at rowPt (Canonical)
-                         obstruction = rowPt; // rowPt is effectively the railing position (Front of row space)
+                         obstruction = rowPt; 
                     }
                     else if (obsIdx != -1)
                     {
-                         // Previous Chair Hard Back
                          int prevIdx = obsIdx;
-                         // Access previous placement via Plane Origin
                          if(prevIdx < solution.SectionChairPlanes.Count)
                          {
                              Plane prevPlane = solution.SectionChairPlanes[prevIdx];
-                             var prevAud = audiences[prevIdx % audiences.Count];
+                             
+                             // Get Setup of obstruction row
+                             int obsSeatType = -1;
+                             if (prevIdx == 0 && disabledSeats != null && disabledSeats.Count > 0)
+                             {
+                                 obsSeatType = 0;
+                             }
+                             else if (audienceMap != null && prevIdx < audienceMap.Count)
+                             {
+                                 obsSeatType = audienceMap[prevIdx];
+                             }
+                             else
+                             {
+                                 if (audiences.Count > 1) obsSeatType = ((prevIdx - 1) % (audiences.Count - 1)) + 1;
+                                 else obsSeatType = 0;
+                             }
+
+                             AudienceSetup prevAud = (obsSeatType >= 0 && obsSeatType < audiences.Count) ? audiences[obsSeatType] : null;
+
                              if (prevAud != null && prevPlane.IsValid)
                              {
-                                 // Obstruction = PrevPlace + (Forward * PrevHBL)
-                                 // Matches startHBL logic for that row.
                                  obstruction = prevPlane.Origin + (forward * prevAud.SecHBL);
                              }
                          }
@@ -437,33 +456,13 @@ namespace Owl.Core.Solvers
                     
                     if (obstruction != Point3d.Unset)
                     {
-                        // Clearance = Space between Obstruction and Front.
-                        // If Forward is +X:
-                        // Obstruction (Back of prev) is Lower X.
-                        // myFront (Front of current) is Higher X.
-                        // Dist = myFront - obstruction.
-                        
-                        // Ensure Positive Distance (Magnitude of vector between them)
                         double val = (myFront - obstruction) * forward; 
-                        
-                        // If value is negative, it means obstruction is "in front" of front (clash or wrong order).
-                        // We will just store the signed distance for now.
                         solution.ChairClearances.Add(val);
-                        
-                        // Dim Line (Lifted Z)
-                        // Ensure horizontal line at Current Chair Level (myFront.Z)
-                        // Start: myFront (p2)
-                        // End: obstruction (p1, projected)
-                        // Direction: Front -> Obstruction "space in front of chair"
                         
                         Point3d p2 = myFront + Vector3d.ZAxis * 20.0;
                         Point3d p1 = new Point3d(obstruction.X, obstruction.Y, p2.Z);
-                        
-                        // User wants "IN FRONT OF THE CHAIR"
-                        // Usually means from Chair Front Limit -> Obstruction.
                         solution.ChairClearanceDims.Add(new LineCurve(p2, p1));
                         
-                        // DEBUG: Use Clashes to output Points temporarily
                         solution.Clashes.Add(p1);
                         solution.Clashes.Add(p2);
                     }
@@ -521,7 +520,7 @@ namespace Owl.Core.Solvers
             // -----------------------------
             if (hallSetup != null && hallSetup.TribuneBoundary != null && hallSetup.TribuneBoundary.IsValid)
             {
-                GeneratePlan(solution, hallSetup, audiences, audienceOffsets, tol, flip, disabledSeats);
+                GeneratePlan(solution, hallSetup, audiences, audienceOffsets, tol, flip, disabledSeats, audienceMap);
             }
             
             // Store Inputs
@@ -539,19 +538,22 @@ namespace Owl.Core.Solvers
             List<double> audienceOffsets,
             double tol,
             bool flip,
-            DisabledSeatsSetup disabledSeats)
+            DisabledSeatsSetup disabledSeats,
+            List<int> audienceMap)
         {
             // Plan Logic:
             // 1. Map Hall Boundaries to Canonical (WorldXY).
             Plane sourceFrame = hallSetup.PlanFrame;
             Transform mapToCanonical = Transform.PlaneToPlane(sourceFrame, Plane.WorldXY);
+            Transform mirror = flip ? Transform.Mirror(Plane.WorldYZ) : Transform.Identity;
             
             var tribBnd = hallSetup.TribuneBoundary.DuplicateCurve();
             tribBnd.Transform(mapToCanonical);
+            if (flip) tribBnd.Transform(mirror);
             
             var clipRegions = new List<Curve>();
-            var mapAisles = hallSetup.AisleBoundaries.Select(c => { var d=c.DuplicateCurve(); d.Transform(mapToCanonical); return d; }).ToList();
-            var mapTunnels = hallSetup.TunnelBoundaries.Select(c => { var d=c.DuplicateCurve(); d.Transform(mapToCanonical); return d; }).ToList();
+            var mapAisles = hallSetup.AisleBoundaries.Select(c => { var d=c.DuplicateCurve(); d.Transform(mapToCanonical); if(flip) d.Transform(mirror); return d; }).ToList();
+            var mapTunnels = hallSetup.TunnelBoundaries.Select(c => { var d=c.DuplicateCurve(); d.Transform(mapToCanonical); if(flip) d.Transform(mirror); return d; }).ToList();
             
             if (tribBnd.IsClosed)
             {
@@ -581,32 +583,34 @@ namespace Owl.Core.Solvers
 
             Func<Curve, List<Curve>> keepOutside = (crv) => TrimCurve(crv, deviations, false, worldXY, tol); 
             Func<Curve, List<Curve>> keepInside = (crv) => TrimCurve(crv, clipRegions, true, worldXY, tol);
-            Func<double, Curve> getPlanLineAtX = (x) => 
+            
+            Func<double, List<Curve>> getPlanLinesAtX = (x) => 
             {
-                // Intersect boundary at X
-                // Note: tribBnd is now in Canonical Space.
-                var p = new Plane(new Point3d(x,0,0), Vector3d.XAxis);
-                var hits = Intersection.CurvePlane(tribBnd, p, tol);
-                if(hits==null||hits.Count<2) return null;
-                var pts = hits.Select(e=>e.PointA).OrderBy(pt=>pt.Y).ToList();
-                return new LineCurve(pts[0], pts.Last());
+                // Robust Intersect: Use a large spanning line to handle concave shapes
+                var bbox = tribBnd.GetBoundingBox(true);
+                if (!bbox.IsValid) return new List<Curve>();
+                
+                Point3d p1 = new Point3d(x, bbox.Min.Y - 1000, 0);
+                Point3d p2 = new Point3d(x, bbox.Max.Y + 1000, 0);
+                var span = new LineCurve(p1, p2);
+                
+                return TrimCurve(span, new List<Curve> { tribBnd }, true, Plane.WorldXY, tol);
             };
             
-            // Note: We do NOT map back to Target. Visualizer will handle mapToTarget.
-            
-            // 1. Tribune Lines (Using RowLocalPoints - Canonical)
-            foreach(var pt in solution.RowLocalPoints) 
+            // 1. Tribune Lines (Using Actual Risers from Section)
+            var riserX = new List<double>();
+            if (solution.SectionTribuneProfile != null && solution.SectionTribuneProfile.TryGetPolyline(out Polyline poly))
             {
-                // pt is already Flipped in Canonical if solution.Flipped was true during generation?
-                // Wait, RowLocalPoints were transformed by mirror if Flipped?
-                // Yes, in Solve method: "for... solution.RowLocalPoints[i].Transform(mirror)".
-                // So pt.X is correct Canonical X.
-                
-                double x = pt.X; 
-                // Don't flip again.
-                
-                var ln = getPlanLineAtX(x);
-                if(ln!=null)
+                foreach (var p in poly)
+                {
+                    if (!riserX.Any(rx => Math.Abs(rx - p.X) < tol)) riserX.Add(p.X);
+                }
+            }
+
+            foreach(var x in riserX) 
+            {
+                var lines = getPlanLinesAtX(x);
+                foreach(var ln in lines)
                 {
                     var segs = keepOutside(ln);
                     foreach(var s in segs) solution.PlanTribuneLines.Add(s); 
@@ -633,8 +637,12 @@ namespace Owl.Core.Solvers
                         double x = sx + k * run * dir; 
                         // Logic verified: if flipped, sx > ex (negative). dir = -1. k*run*(-1) -> reduces x. Correct.
                         
-                        var ln = getPlanLineAtX(x);
-                        if(ln!=null) { var s=keepInside(ln); foreach(var c in s) solution.PlanStairLines.Add(c); }
+                        var lines = getPlanLinesAtX(x);
+                        foreach(var ln in lines)
+                        {
+                            var s=keepInside(ln); 
+                            foreach(var c in s) solution.PlanStairLines.Add(c); 
+                        }
                     }
                 }
             }
@@ -665,8 +673,8 @@ namespace Owl.Core.Solvers
                     double offset = flip ? rW/2.0 : -rW/2.0; 
                     double targetX = cx + offset;
                     
-                    var ln = getPlanLineAtX(targetX);
-                    if(ln!=null)
+                    var lines = getPlanLinesAtX(targetX);
+                    foreach(var ln in lines)
                     {
                         var segs = keepOutside(ln);
                         foreach(var seg in segs)
@@ -681,203 +689,143 @@ namespace Owl.Core.Solvers
             // 4. Chairs
             if (audiences != null && audiences.Count > 0)
             {
-               for (int i = 0; i < solution.RowLocalPoints.Count; i++)
-               {
-                   var aud = audiences[i % audiences.Count]; // Default audience for this row
-                   if (aud == null) continue;
-                   
-                   double baseX = solution.RowLocalPoints[i].X;
-                   double offVal = (audienceOffsets != null && audienceOffsets.Count >i) ? audienceOffsets[i] : 0;
-                   double targetX = baseX + (flip ? -offVal : offVal);
-                   Vector3d forward = flip ? -Vector3d.XAxis : Vector3d.XAxis;
-                   
-                   var ln = getPlanLineAtX(targetX);
-                   if (ln != null)
-                   {
-                       var segments = keepOutside(ln);
-                       if (segments == null || segments.Count == 0) continue;
+                // Initialize Categorized Collections
+                int typeCount = audiences.Count;
+                solution.CategorizedPlanChairs = new List<List<Curve>>();
+                solution.CategorizedPlanChairPlanes = new List<List<Plane>>();
+                for (int t = 0; t < typeCount; t++)
+                {
+                    solution.CategorizedPlanChairs.Add(new List<Curve>());
+                    solution.CategorizedPlanChairPlanes.Add(new List<Plane>());
+                }
 
-                       // Check for Disabled Seats on Row 0
-                       if (i == 0 && disabledSeats != null && disabledSeats.Count > 0 && disabledSeats.Setup != null)
-                       {
-                           // Special Logic for Row 0
-                           double totalLen = segments.Sum(s => s.GetLength());
-                           double dWidth = disabledSeats.Setup.PlanChairWidth;
-                           double dLen = disabledSeats.Count * dWidth;
+                for (int i = 0; i < solution.RowLocalPoints.Count; i++)
+                {
+                    double baseX = solution.RowLocalPoints[i].X;
+                    double offVal = (audienceOffsets != null && audienceOffsets.Count > i) ? audienceOffsets[i] : 0;
+                    double targetX = baseX + (flip ? -offVal : offVal);
+                    Vector3d forward = flip ? -Vector3d.XAxis : Vector3d.XAxis;
 
-                           // Calculate Placement Interval [start, end] on the continuous line
-                           double slack = totalLen - dLen;
-                           // If slack < 0, we center it or just start at 0? 
-                           // "Slide" usually implies we can go out of bounds? 
-                           // Let's assume clamp to distribution logic. 
-                           // If slack is negative, Distribution 0.5 centers the overflow.
-                           
-                           double distParam = disabledSeats.Distribution; // 0..1
-                           double startDist = slack * distParam; 
-                           double endDist = startDist + dLen;
+                    var lines = getPlanLinesAtX(targetX);
+                    if (lines == null || lines.Count == 0) continue;
 
-                           double currentDist = 0.0;
-                           
-                           // Helper to fill generic segment
-                           Action<Curve, AudienceSetup> fillSeg = (crv, sSetup) => 
-                           {
-                               if(crv == null) return;
-                               double cw = sSetup.PlanChairWidth;
-                               double len = crv.GetLength();
-                               if (len < cw) return;
-                               
-                               int N = (int)Math.Floor(len / cw);
-                               double totalSpan = N * cw;
-                               double margin = (len - totalSpan)/2.0;
+                    var allSegments = new List<Curve>();
+                    foreach(var ln in lines) allSegments.AddRange(keepOutside(ln));
+                    if (allSegments.Count == 0) continue;
 
-                               var rowChairs = new List<Curve>();
-                               var rowPlanes = new List<Plane>();
-                               
-                               for(int k=0; k<N; k++)
-                               {
-                                   double tVal = margin + cw * 0.5 + k * cw;
-                                   double t;
-                                   if (crv.LengthParameter(tVal, out t))
-                                   {
-                                        Point3d pt = crv.PointAt(t);
-                                        Plane pp = new Plane(pt, forward, Vector3d.YAxis);
-                                        var xform = Transform.PlaneToPlane(sSetup.PlanChairOriginPlane, pp);
-                                        rowPlanes.Add(pp);
-                                        if (sSetup.PlanChairGeo != null)
-                                        {
-                                            foreach(var g in sSetup.PlanChairGeo)
-                                            {
-                                                var d = g.DuplicateCurve();
-                                                d.Transform(xform);
-                                                rowChairs.Add(d);
-                                            }
-                                        }
-                                   }
-                               }
-                               solution.PlanChairs.Add(rowChairs);
-                               solution.PlanChairPlanes.Add(rowPlanes);
-                           };
+                    int baseSeatType = -1;
+                    if (audienceMap != null && i < audienceMap.Count) baseSeatType = audienceMap[i];
+                    else 
+                    {
+                         if (i == 0 && disabledSeats != null && disabledSeats.Count > 0) baseSeatType = 0;
+                         else if (audiences.Count > 1) baseSeatType = ((i - 1) % (audiences.Count - 1)) + 1;
+                         else baseSeatType = 0;
+                    }
 
-                           foreach (var seg in segments)
-                           {
-                               var currentSeg = seg;
-                               double segLen = currentSeg.GetLength();
-                               double segStart = currentDist;
-                               double segEnd = currentDist + segLen;
+                    int seatIndexInRow = 0;
+                    var rowChairs = new List<Curve>();
+                    var rowPlanes = new List<Plane>();
 
-                               // Intersect [segStart, segEnd] with [startDist, endDist]
-                               double overlapStart = Math.Max(segStart, startDist);
-                               double overlapEnd = Math.Min(segEnd, endDist);
+                    // Helper to add chair to solution
+                    Action<Plane, AudienceSetup, int> addChair = (p, setup, typeIdx) =>
+                    {
+                        var transformedGeo = new List<Curve>();
+                        foreach (var c in setup.PlanChairGeo)
+                        {
+                            if (c != null)
+                            {
+                                var dc = c.DuplicateCurve();
+                                dc.Transform(Transform.PlaneToPlane(setup.PlanChairOriginPlane, p));
+                                transformedGeo.Add(dc);
+                            }
+                        }
+                        rowChairs.AddRange(transformedGeo);
+                        rowPlanes.Add(p);
 
-                               if (overlapStart < overlapEnd)
-                               {
-                                   // We have disabled section here
-                                   // Pre-Overlap (Standard)
-                                   if (segStart < overlapStart - tol)
-                                   {
-                                       // Split at overlapStart
-                                       double splitLen = overlapStart - segStart;
-                                       double tSplit;
-                                       if(currentSeg.LengthParameter(splitLen, out tSplit))
-                                       {
-                                           var splitRes = currentSeg.Split(tSplit);
-                                           if(splitRes!=null && splitRes.Length>0)
-                                           {
-                                                fillSeg(splitRes[0], aud); // Standard
-                                                currentSeg = splitRes.Last(); // Remainder is the rest
-                                           }
-                                       }
-                                   }
+                        if (typeIdx >= 0 && typeIdx < solution.CategorizedPlanChairs.Count)
+                        {
+                            solution.CategorizedPlanChairPlanes[typeIdx].Add(p);
+                            foreach (var c in transformedGeo) solution.CategorizedPlanChairs[typeIdx].Add(c.DuplicateCurve());
+                        }
+                    };
 
-                                   // Now 'currentSeg' starts at overlapStart (conceptually)
-                                   // Fill 'currentSeg' with Disabled up to 'overlapEnd'
-                                   // length of disabled part = overlapEnd - overlapStart
-                                   double splitLenD = overlapEnd - overlapStart;
-                                   
-                                   // We need to verify if currentSeg is long enough (it should be ~splitLenD)
-                                   // If overlapEnd < segEnd, we split again.
-                                   if (overlapEnd < segEnd - tol)
-                                   {
-                                        double tSplitD;
-                                        if(currentSeg.LengthParameter(splitLenD, out tSplitD))
-                                        {
-                                            var splitRes = currentSeg.Split(tSplitD);
-                                            if (splitRes != null && splitRes.Length > 0)
-                                            {
-                                                fillSeg(splitRes[0], disabledSeats.Setup); // Disabled
-                                                fillSeg(splitRes.Last(), aud); // Remainder Standard
-                                            }
-                                        }
-                                        else 
-                                        {
-                                            // Fallback logic?
-                                            fillSeg(currentSeg, disabledSeats.Setup); 
-                                        }
-                                   }
-                                   else
-                                   {
-                                       // Whole rest is disabled
-                                       fillSeg(currentSeg, disabledSeats.Setup);
-                                   }
-                               }
-                               else
-                               {
-                                   // No overlap, purely Standard
-                                   fillSeg(currentSeg, aud);
-                               }
+                    // Check for Disabled Seats on Row 0
+                    bool hasManualDisabled = (i == 0 && disabledSeats != null && disabledSeats.Count > 0);
+                    
+                    double totalLen = allSegments.Sum(s => s.GetLength());
+                    double startDistD = -1;
+                    double endDistD = -1;
 
-                               currentDist += segLen;
-                           }
-                       }
-                       else
-                       {
-                           // STANDARD LOGIC for other rows or if no disabled seats
-                           var rowChairs = new List<Curve>();
-                           var rowPlanes = new List<Plane>();
-                           
-                           double cw = aud.PlanChairWidth;
-                           
-                           foreach(var seg in segments)
-                           {
-                                if (seg == null) continue;
-                                double len = seg.GetLength();
-                                if (len < cw) continue;
+                    if (hasManualDisabled)
+                    {
+                        double dWidth = audiences[0].PlanChairWidth;
+                        double dLen = disabledSeats.Count * dWidth;
+                        double slack = totalLen - dLen;
+                        double distParam = disabledSeats.Distribution;
+                        startDistD = slack * distParam;
+                        endDistD = startDistD + dLen;
+                    }
+
+                    double currentDistAcrossRow = 0.0;
+                    foreach (var seg in allSegments)
+                    {
+                        if (seg == null) continue;
+                        double segLen = seg.GetLength();
+                        if (segLen < 1e-6) continue;
+
+                        // 1. Determine which chairs fit in this segment
+                        var tempSetups = new List<AudienceSetup>();
+                        var tempTypes = new List<int>();
+                        double totalAxialWidth = 0;
+
+                        while (true)
+                        {
+                            // Peek next chair type
+                            double globalPosEstimate = currentDistAcrossRow + totalAxialWidth;
+                            int sType = (hasManualDisabled && globalPosEstimate >= startDistD - tol && globalPosEstimate < endDistD - tol) ? 0 : baseSeatType;
+                            
+                            AudienceSetup aud = (sType >= 0 && sType < audiences.Count) ? audiences[sType] : null;
+                            if (aud == null) break;
+
+                            if (totalAxialWidth + aud.PlanChairWidth > segLen + tol) break;
+
+                            tempSetups.Add(aud);
+                            tempTypes.Add(sType);
+                            totalAxialWidth += aud.PlanChairWidth;
+                        }
+
+                        // 2. Centering and Placement
+                        if (tempSetups.Count > 0)
+                        {
+                            double slack = segLen - totalAxialWidth;
+                            double currentSegDist = slack / 2.0;
+
+                            for (int k = 0; k < tempSetups.Count; k++)
+                            {
+                                var aud = tempSetups[k];
+                                var sType = tempTypes[k];
+
+                                double centerInStep = currentSegDist + (aud.PlanChairWidth / 2.0);
                                 
-                                int N = (int)Math.Floor(len / cw);
-                                double totalSpan = N * cw;
-                                double margin = (len - totalSpan)/2.0;
-                                
-                                for(int k=0; k<N; k++)
+                                double t;
+                                if (seg.LengthParameter(centerInStep, out t))
                                 {
-                                    double tVal = margin + cw * 0.5 + k * cw;
-                                    double t;
-                                    if (seg.LengthParameter(tVal, out t))
-                                    {
-                                        Point3d pt = seg.PointAt(t);
-                                        // Plane(Pt, Forward, Y) -> Matches WorldXY or World(-X)Y
-                                        Plane pp = new Plane(pt, forward, Vector3d.YAxis);
-                                        
-                                        var xform = Transform.PlaneToPlane(aud.PlanChairOriginPlane, pp);
-                                        
-                                        rowPlanes.Add(pp); // Canonical
-                                        
-                                        if (aud.PlanChairGeo != null)
-                                        {
-                                            foreach(var g in aud.PlanChairGeo)
-                                            {
-                                                var d = g.DuplicateCurve();
-                                                d.Transform(xform);
-                                                rowChairs.Add(d);
-                                            }
-                                        }
-                                    }
+                                    Point3d pt = seg.PointAt(t);
+                                    Plane pp = new Plane(pt, forward, Vector3d.YAxis);
+                                    addChair(pp, aud, sType);
                                 }
-                           }
-                           solution.PlanChairs.Add(rowChairs);
-                           solution.PlanChairPlanes.Add(rowPlanes);
-                       }
-                   }
-               }
+
+                                currentSegDist += aud.PlanChairWidth;
+                                seatIndexInRow++;
+                            }
+                        }
+
+                        currentDistAcrossRow += segLen;
+                    }
+
+                    solution.PlanChairs.Add(rowChairs);
+                    solution.PlanChairPlanes.Add(rowPlanes);
+                }
             }
         }
         

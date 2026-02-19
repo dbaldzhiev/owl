@@ -17,6 +17,7 @@ namespace Owl.Core.Primitives
         public List<Curve> PlanChairGeo { get; set; }
         public Plane PlanChairOriginPlane { get; set; }
         public double PlanChairWidth { get; set; }
+        public double ActualWidth { get; set; }
 
         public AudienceSetup()
         {
@@ -28,6 +29,7 @@ namespace Owl.Core.Primitives
             PlanChairGeo = new List<Curve>();
             PlanChairOriginPlane = Plane.WorldXY;
             PlanChairWidth = 500.0;
+            ActualWidth = 500.0;
         }
 
         public AudienceSetup(
@@ -39,7 +41,8 @@ namespace Owl.Core.Primitives
             double secSBL = 200.0,
             List<Curve>? planChairGeo = null,
             Plane planChairOriginPlane = default,
-            double planChairWidth = 500.0)
+            double planChairWidth = 500.0,
+            double actualWidth = -1.0)
         {
             EyeLocation = eyeLocation;
             SecOriginPlane = secOriginPlane;
@@ -51,6 +54,7 @@ namespace Owl.Core.Primitives
             PlanChairOriginPlane = planChairOriginPlane; // Struct default is invalid, so let's check
             if (!planChairOriginPlane.IsValid) PlanChairOriginPlane = Plane.WorldXY;
             PlanChairWidth = planChairWidth;
+            ActualWidth = (actualWidth < 0) ? planChairWidth : actualWidth;
         }
 
         public AudienceSetup Duplicate()
@@ -64,7 +68,8 @@ namespace Owl.Core.Primitives
                 SecSBL,
                 PlanChairGeo?.Select(c => c.DuplicateCurve()).ToList(),
                 PlanChairOriginPlane,
-                PlanChairWidth
+                PlanChairWidth,
+                ActualWidth
             );
         }
     }
