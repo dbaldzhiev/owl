@@ -301,7 +301,7 @@ namespace Owl.Core.Solvers
             if (audiences != null && audiences.Count > 0)
             {
                 // Initialize Categorized Collections
-                int typeCount = audiences.Count + 1;
+                int typeCount = audiences.Count;
                 solution.CategorizedSectionChairs = new List<List<Curve>>();
                 solution.CategorizedSectionChairPlanes = new List<List<Plane>>();
                 for (int t = 0; t < typeCount; t++)
@@ -322,20 +322,22 @@ namespace Owl.Core.Solvers
                 for (int i = 0; i < solution.RowLocalPoints.Count; i++)
                 {
                     // Determine Type for this row
-                    int rowTypeIdx = -1;
-                    if (audienceMap != null && i < audienceMap.Count)
-                        rowTypeIdx = audienceMap[i];
+                    int seatType = -1;
+                    if (i == 0 && disabledSeats != null && disabledSeats.Count > 0)
+                    {
+                        seatType = 0;
+                    }
+                    else if (audienceMap != null && i < audienceMap.Count)
+                    {
+                        seatType = audienceMap[i];
+                    }
                     else
-                        rowTypeIdx = (i % audiences.Count) + 1;
+                    {
+                        if (audiences.Count > 1) seatType = ((i - 1) % (audiences.Count - 1)) + 1;
+                        else seatType = 0; 
+                    }
 
-                    // Support Row 0 Disabled seat override in section view (shows the disabled chair type)
-                    int seatType = rowTypeIdx;
-                    if (i == 0 && disabledSeats != null && disabledSeats.Count > 0 && disabledSeats.Setup != null)
-                        seatType = 0; // Use disabled type for section representation if present on row 0
-
-                    AudienceSetup aud = null;
-                    if (seatType == 0 && disabledSeats != null) aud = disabledSeats.Setup;
-                    else if (seatType > 0 && seatType <= audiences.Count) aud = audiences[seatType - 1];
+                    AudienceSetup aud = (seatType >= 0 && seatType < audiences.Count) ? audiences[seatType] : null;
 
                     if (aud == null) 
                     {
@@ -429,13 +431,21 @@ namespace Owl.Core.Solvers
                              
                              // Get Setup of obstruction row
                              int obsSeatType = -1;
-                             if (audienceMap != null && prevIdx < audienceMap.Count) obsSeatType = audienceMap[prevIdx];
-                             else obsSeatType = (prevIdx % audiences.Count) + 1;
-                             if (prevIdx == 0 && disabledSeats != null && disabledSeats.Count > 0 && disabledSeats.Setup != null) obsSeatType = 0;
+                             if (prevIdx == 0 && disabledSeats != null && disabledSeats.Count > 0)
+                             {
+                                 obsSeatType = 0;
+                             }
+                             else if (audienceMap != null && prevIdx < audienceMap.Count)
+                             {
+                                 obsSeatType = audienceMap[prevIdx];
+                             }
+                             else
+                             {
+                                 if (audiences.Count > 1) obsSeatType = ((prevIdx - 1) % (audiences.Count - 1)) + 1;
+                                 else obsSeatType = 0;
+                             }
 
-                             AudienceSetup prevAud = null;
-                             if (obsSeatType == 0 && disabledSeats != null) prevAud = disabledSeats.Setup;
-                             else if (obsSeatType > 0 && obsSeatType <= audiences.Count) prevAud = audiences[obsSeatType - 1];
+                             AudienceSetup prevAud = (obsSeatType >= 0 && obsSeatType < audiences.Count) ? audiences[obsSeatType] : null;
 
                              if (prevAud != null && prevPlane.IsValid)
                              {
@@ -680,8 +690,7 @@ namespace Owl.Core.Solvers
             if (audiences != null && audiences.Count > 0)
             {
                 // Initialize Categorized Collections
-                // Count = audiences.Count + 1 (for Type 0 = Disabled)
-                int typeCount = audiences.Count + 1;
+                int typeCount = audiences.Count;
                 solution.CategorizedPlanChairs = new List<List<Curve>>();
                 solution.CategorizedPlanChairPlanes = new List<List<Plane>>();
                 for (int t = 0; t < typeCount; t++)
@@ -704,9 +713,14 @@ namespace Owl.Core.Solvers
                     foreach(var ln in lines) allSegments.AddRange(keepOutside(ln));
                     if (allSegments.Count == 0) continue;
 
-                    int rowTypeIdx = -1;
-                    if (audienceMap != null && i < audienceMap.Count) rowTypeIdx = audienceMap[i];
-                    else rowTypeIdx = (i % audiences.Count) + 1;
+                    int baseSeatType = -1;
+                    if (audienceMap != null && i < audienceMap.Count) baseSeatType = audienceMap[i];
+                    else 
+                    {
+                         if (i == 0 && disabledSeats != null && disabledSeats.Count > 0) baseSeatType = 0;
+                         else if (audiences.Count > 1) baseSeatType = ((i - 1) % (audiences.Count - 1)) + 1;
+                         else baseSeatType = 0;
+                    }
 
                     int seatIndexInRow = 0;
                     var rowChairs = new List<Curve>();
@@ -736,7 +750,7 @@ namespace Owl.Core.Solvers
                     };
 
                     // Check for Disabled Seats on Row 0
-                    bool hasManualDisabled = (i == 0 && disabledSeats != null && disabledSeats.Count > 0 && disabledSeats.Setup != null);
+                    bool hasManualDisabled = (i == 0 && disabledSeats != null && disabledSeats.Count > 0);
                     
                     double totalLen = allSegments.Sum(s => s.GetLength());
                     double startDistD = -1;
@@ -744,7 +758,7 @@ namespace Owl.Core.Solvers
 
                     if (hasManualDisabled)
                     {
-                        double dWidth = disabledSeats.Setup.PlanChairWidth;
+                        double dWidth = audiences[0].PlanChairWidth;
                         double dLen = disabledSeats.Count * dWidth;
                         double slack = totalLen - dLen;
                         double distParam = disabledSeats.Distribution;
@@ -757,105 +771,55 @@ namespace Owl.Core.Solvers
                     {
                         if (seg == null) continue;
                         double segLen = seg.GetLength();
+                        if (segLen < 1e-6) continue;
 
-                        // 1. Calculate how many chairs fit in this segment to center them.
-                        // We need to keep track of the setups for the sequence.
-                        var setupsForThisSeg = new List<AudienceSetup>();
-                        var typesForThisSeg = new List<int>();
-                        double currentRequiredLen = 0;
-                        int currentSeatCount = 0;
+                        // 1. Determine which chairs fit in this segment
+                        var tempSetups = new List<AudienceSetup>();
+                        var tempTypes = new List<int>();
+                        double totalAxialWidth = 0;
 
                         while (true)
                         {
-                            int seatType = rowTypeIdx;
-                            if (hasManualDisabled)
-                            {
-                                // We need a way to predict the global position. 
-                                // Let's estimate using axial width of the NEXT seat.
-                                double predictedGlobalEnd = currentDistAcrossRow + currentRequiredLen;
-                                // Wait, the "fit" loop is tricky because we don't know the exact position until we know how many chairs.
-                                // But if we assume we're packing them, we can estimate.
-                                // Actually, let's just use the logic: AxialWidth is the distance between centers.
-                                // Footprint is ActualWidth.
-                            }
+                            // Peek next chair type
+                            double globalPosEstimate = currentDistAcrossRow + totalAxialWidth;
+                            int sType = (hasManualDisabled && globalPosEstimate >= startDistD - tol && globalPosEstimate < endDistD - tol) ? 0 : baseSeatType;
+                            
+                            AudienceSetup aud = (sType >= 0 && sType < audiences.Count) ? audiences[sType] : null;
+                            if (aud == null) break;
 
-                            // To avoid complex lookahead, let's just simulate the placement.
-                            int nextSeatType = rowTypeIdx;
-                            if (hasManualDisabled)
-                            {
-                                // Estimation: if we add a chair, where does its center fall?
-                                // If first: center = ActualWidth/2.
-                                // If subsequent: center = prevCenter + (prevAxial + currAxial)/2.
-                            }
+                            if (totalAxialWidth + aud.PlanChairWidth > segLen + tol) break;
 
-                            // Let's simplify: Get the setup first.
-                            // We need to know the type for seatIndexInRow + currentSeatCount.
-                            // But Rowan indices are not passed here.
-                            // For now, let's use the local seat index within row.
-                        
-                            // Correct logic for manual disabled:
-                            Func<double, int> getSeatTypeAtPos = (globalPos) => {
-                                if (hasManualDisabled && globalPos >= startDistD - tol && globalPos < endDistD - tol) return 0;
-                                return rowTypeIdx;
-                            };
+                            tempSetups.Add(aud);
+                            tempTypes.Add(sType);
+                            totalAxialWidth += aud.PlanChairWidth;
+                        }
 
-                            // Simulation loop
-                            double lastCenter = 0;
-                            double lastAxial = 0;
-                            double currentFootprintEnd = 0;
-                            var tempSetups = new List<AudienceSetup>();
-                            var tempTypes = new List<int>();
-
-                            while (true)
-                            {
-                                int sType = getSeatTypeAtPos(currentDistAcrossRow + currentFootprintEnd); // Rough estimate
-                                AudienceSetup s = (sType == 0 && disabledSeats != null) ? disabledSeats.Setup : (sType > 0 && sType <= audiences.Count ? audiences[sType - 1] : null);
-                                if (s == null) break;
-
-                                double thisCenter;
-                                if (tempSetups.Count == 0) thisCenter = s.ActualWidth / 2.0;
-                                else thisCenter = lastCenter + (lastAxial + s.PlanChairWidth) / 2.0;
-
-                                double thisEnd = thisCenter + s.ActualWidth / 2.0;
-                                if (thisEnd > segLen + tol) break;
-
-                                lastCenter = thisCenter;
-                                lastAxial = s.PlanChairWidth;
-                                currentFootprintEnd = thisEnd;
-                                tempSetups.Add(s);
-                                tempTypes.Add(sType);
-                            }
-
-                            // 2. Centering and Placement
-                            double slack = segLen - currentFootprintEnd;
-                            double shift = slack / 2.0;
-                            if (shift < 0) shift = 0;
-
-                            double placingCenter = shift;
-                            AudienceSetup prevS = null;
+                        // 2. Centering and Placement
+                        if (tempSetups.Count > 0)
+                        {
+                            double slack = segLen - totalAxialWidth;
+                            double currentSegDist = slack / 2.0;
 
                             for (int k = 0; k < tempSetups.Count; k++)
                             {
                                 var aud = tempSetups[k];
                                 var sType = tempTypes[k];
 
-                                if (prevS == null) placingCenter += aud.ActualWidth / 2.0;
-                                else placingCenter += (prevS.PlanChairWidth + aud.PlanChairWidth) / 2.0;
-
+                                double centerInStep = currentSegDist + (aud.PlanChairWidth / 2.0);
+                                
                                 double t;
-                                if (seg.LengthParameter(placingCenter, out t))
+                                if (seg.LengthParameter(centerInStep, out t))
                                 {
                                     Point3d pt = seg.PointAt(t);
                                     Plane pp = new Plane(pt, forward, Vector3d.YAxis);
                                     addChair(pp, aud, sType);
                                 }
 
-                                prevS = aud;
+                                currentSegDist += aud.PlanChairWidth;
                                 seatIndexInRow++;
                             }
-
-                            break; // We did the whole segment in one nested logic
                         }
+
                         currentDistAcrossRow += segLen;
                     }
 

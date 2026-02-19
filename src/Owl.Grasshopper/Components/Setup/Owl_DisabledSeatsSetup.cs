@@ -17,7 +17,6 @@ namespace Owl.Grasshopper.Components.Setup
 
         protected override void RegisterInputParams(GH_Component.GH_InputParamManager pManager)
         {
-            pManager.AddGenericParameter("AudienceSetup", "Audience", "Audience Setup for Disabled Chair", GH_ParamAccess.item);
             pManager.AddIntegerParameter("Count", "Count", "Number of disabled chairs", GH_ParamAccess.item, 0);
             pManager.AddNumberParameter("Distribution", "Dist", "Distribution of chairs (0.0 to 1.0)", GH_ParamAccess.item, 0.5);
         }
@@ -29,15 +28,13 @@ namespace Owl.Grasshopper.Components.Setup
 
         protected override void SolveInstance(IGH_DataAccess DA)
         {
-            AudienceSetup aud = null;
             int count = 0;
             double dist = 0.5;
 
-            if (!DA.GetData(0, ref aud) || aud == null) return;
-            DA.GetData(1, ref count);
-            DA.GetData(2, ref dist);
+            DA.GetData(0, ref count);
+            DA.GetData(1, ref dist);
 
-            var setup = new DisabledSeatsSetup(aud, count, dist);
+            var setup = new DisabledSeatsSetup(count, dist);
 
             DA.SetData(0, setup);
         }
