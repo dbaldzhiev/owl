@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
 using Grasshopper.Kernel;
+using Grasshopper.Kernel.Data;
+using Grasshopper.Kernel.Types;
 using Rhino.Geometry;
 using Owl.Core.Primitives;
 using Owl.Core.Visualization;
@@ -27,8 +29,8 @@ namespace Owl.Grasshopper.Components.Visualization
             pManager.AddCurveParameter("Tribune", "Trib", "Tribune profile geometry (Plan or Section)", GH_ParamAccess.list);
             pManager.AddCurveParameter("Stairs", "Stairs", "Stairs profile geometry (Plan or Section)", GH_ParamAccess.list);
             pManager.AddCurveParameter("Railings", "Rails", "Railing geometry (Plan or Section)", GH_ParamAccess.list);
-            pManager.AddCurveParameter("Chairs", "Chairs", "Chair geometry (Plan or Section)", GH_ParamAccess.list);
-            pManager.AddPlaneParameter("ChairFrames", "Frames", "Chair placement frames (Plan or Section)", GH_ParamAccess.list);
+            pManager.AddCurveParameter("Chairs", "Chairs", "Chair geometry (Plan or Section)", GH_ParamAccess.tree);
+            pManager.AddPlaneParameter("ChairFrames", "Frames", "Chair placement frames (Plan or Section)", GH_ParamAccess.tree);
             pManager.AddBrepParameter("ProjectorCone", "Cone", "Projector cone visualization (Section)", GH_ParamAccess.item);
             pManager.AddCurveParameter("Dims", "Dims", "Dimension lines for clearance", GH_ParamAccess.list);
             pManager.AddCurveParameter("SafetyArc", "SafeArc", "Projector safety zone arc", GH_ParamAccess.item);
@@ -68,15 +70,39 @@ namespace Owl.Grasshopper.Components.Visualization
                 out List<Curve> outSightlines,
                 out List<Line> outLimits,
                 out List<Curve> outChairClDims,
-                out List<Curve> outStairClDims
+                out List<Curve> outStairClDims,
+                out List<List<Curve>> outCatChairs,
+                out List<List<Plane>> outCatFrames
             );
 
             // Set Data
             DA.SetDataList(0, outTrib);
             DA.SetDataList(1, outStairs);
             DA.SetDataList(2, outRailings);
-            DA.SetDataList(3, outChairs);
-            DA.SetDataList(4, outFrames);
+
+            // Categorized Chairs and Frames -> DataTree
+            var chairTree = new GH_Structure<GH_Curve>();
+            for (int i = 0; i < outCatChairs.Count; i++)
+            {
+                var path = new GH_Path(i);
+                foreach (var c in outCatChairs[i])
+                {
+                    if (c != null) chairTree.Append(new GH_Curve(c), path);
+                }
+            }
+            DA.SetDataTree(3, chairTree);
+
+            var frameTree = new GH_Structure<GH_Plane>();
+            for (int i = 0; i < outCatFrames.Count; i++)
+            {
+                var path = new GH_Path(i);
+                foreach (var p in outCatFrames[i])
+                {
+                    frameTree.Append(new GH_Plane(p), path);
+                }
+            }
+            DA.SetDataTree(4, frameTree);
+
             if (outCone != null) DA.SetData(5, outCone);
             DA.SetDataList(6, outDims);
             if (outSafetyArc != null) DA.SetData(7, outSafetyArc);

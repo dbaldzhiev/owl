@@ -25,12 +25,14 @@ namespace Owl.Grasshopper.Components.Setup
             pManager.AddNumberParameter("SoftBackLimit", "SBL", "Section soft-back limit (default 200)", GH_ParamAccess.item, 200.0);
             pManager.AddCurveParameter("ChairPlan", "PlanProf", "Plan view chair curves", GH_ParamAccess.list);
             pManager.AddPlaneParameter("PlanFrame", "PlanFrame", "Plan view chair origin plane", GH_ParamAccess.item, Plane.WorldXY);
-            pManager.AddNumberParameter("ChairWidth", "Width", "Plan view chair width", GH_ParamAccess.item, 500.0);
+            pManager.AddNumberParameter("ChairWidth", "Width", "Plan view chair width (Axial)", GH_ParamAccess.item, 500.0);
+            pManager.AddNumberParameter("ActualWidth", "ActWidth", "Plan view actual chair width (Footprint)", GH_ParamAccess.item, 500.0);
 
             pManager[2].Optional = true;   // ChairProfile
             pManager[6].Optional = true;   // ChairPlan
             pManager[7].Optional = true;   // PlanFrame
             pManager[8].Optional = true;   // ChairWidth
+            pManager[9].Optional = true;   // ActualWidth
         }
 
         protected override void RegisterOutputParams(GH_Component.GH_OutputParamManager pManager)
@@ -49,6 +51,7 @@ namespace Owl.Grasshopper.Components.Setup
             List<Curve> planChairs = new List<Curve>();
             Plane planOrigin = Plane.WorldXY;
             double planWidth = 500.0;
+            double actualWidth = 500.0;
 
             DA.GetData(0, ref eye);
             DA.GetData(1, ref secOrigin);
@@ -59,8 +62,9 @@ namespace Owl.Grasshopper.Components.Setup
             DA.GetDataList(6, planChairs);
             DA.GetData(7, ref planOrigin);
             DA.GetData(8, ref planWidth);
+            DA.GetData(9, ref actualWidth);
 
-            var setup = new AudienceSetup(eye, secOrigin, secChairs, secFL, secHBL, secSBL, planChairs, planOrigin, planWidth);
+            var setup = new AudienceSetup(eye, secOrigin, secChairs, secFL, secHBL, secSBL, planChairs, planOrigin, planWidth, actualWidth);
             DA.SetData(0, setup);
         }
 

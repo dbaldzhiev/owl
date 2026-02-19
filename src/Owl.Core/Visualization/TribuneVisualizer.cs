@@ -21,7 +21,9 @@ namespace Owl.Core.Visualization
             out List<Curve> outSightlines,
             out List<Line> outLimits,
             out List<Curve> outChairClDims,
-            out List<Curve> outStairClDims)
+            out List<Curve> outStairClDims,
+            out List<List<Curve>> outCategorizedChairs,
+            out List<List<Plane>> outCategorizedFrames)
         {
             outTrib = new List<Curve>();
             outStairs = new List<Curve>();
@@ -35,6 +37,8 @@ namespace Owl.Core.Visualization
             outLimits = new List<Line>();
             outChairClDims = new List<Curve>();
             outStairClDims = new List<Curve>();
+            outCategorizedChairs = new List<List<Curve>>();
+            outCategorizedFrames = new List<List<Plane>>();
 
             if (solution == null) return;
             
@@ -110,6 +114,37 @@ namespace Owl.Core.Visualization
                         dp.Transform(xform);
                         outFrames.Add(dp);
                     }
+                }
+
+                // Categorized Output
+                foreach (var typeList in solution.CategorizedSectionChairs)
+                {
+                    var outList = new List<Curve>();
+                    if (typeList != null)
+                    {
+                        foreach (var c in typeList)
+                        {
+                            var dc = c.DuplicateCurve();
+                            dc.Transform(xform);
+                            outList.Add(dc);
+                        }
+                    }
+                    outCategorizedChairs.Add(outList);
+                }
+
+                foreach (var typeList in solution.CategorizedSectionChairPlanes)
+                {
+                    var outList = new List<Plane>();
+                    if (typeList != null)
+                    {
+                        foreach (var p in typeList)
+                        {
+                            var dp = p;
+                            dp.Transform(xform);
+                            outList.Add(dp);
+                        }
+                    }
+                    outCategorizedFrames.Add(outList);
                 }
 
                 // Projector Cone & Arc
@@ -258,6 +293,37 @@ namespace Owl.Core.Visualization
                 foreach (var rowFrames in solution.PlanChairPlanes)
                     if (rowFrames != null) 
                         foreach(var p in rowFrames) { var dp=p; dp.Transform(xform); outFrames.Add(dp); }
+
+                // Categorized Output
+                foreach (var typeList in solution.CategorizedPlanChairs)
+                {
+                    var outList = new List<Curve>();
+                    if (typeList != null)
+                    {
+                        foreach (var c in typeList)
+                        {
+                            var dc = c.DuplicateCurve();
+                            dc.Transform(xform);
+                            outList.Add(dc);
+                        }
+                    }
+                    outCategorizedChairs.Add(outList);
+                }
+
+                foreach (var typeList in solution.CategorizedPlanChairPlanes)
+                {
+                    var outList = new List<Plane>();
+                    if (typeList != null)
+                    {
+                        foreach (var p in typeList)
+                        {
+                            var dp = p;
+                            dp.Transform(xform);
+                            outList.Add(dp);
+                        }
+                    }
+                    outCategorizedFrames.Add(outList);
+                }
             }
             // Removed Transform logic: Inputs are already in correct frame. 
             // ^ Old comment. New logic APPLIES transform.

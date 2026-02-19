@@ -33,8 +33,17 @@ namespace Owl.Core.Primitives
 
         // Placement Planes (for block insertion or logic)
         public List<Plane> SectionChairPlanes { get; set; } = new List<Plane>();
+        
+        // Categorized Data (Indexed by Audience Type: 0=Disabled, 1=Audience[0], etc.)
+        public List<List<Curve>> CategorizedSectionChairs { get; set; } = new List<List<Curve>>();
+        public List<List<Plane>> CategorizedSectionChairPlanes { get; set; } = new List<List<Plane>>();
 
         public List<List<Plane>> PlanChairPlanes { get; set; } = new List<List<Plane>>();
+        
+        // Categorized Data (Indexed by Audience Type: 0=Disabled, 1=Audience[0], etc.)
+        public List<List<Curve>> CategorizedPlanChairs { get; set; } = new List<List<Curve>>();
+        public List<List<Plane>> CategorizedPlanChairPlanes { get; set; } = new List<List<Plane>>();
+
         public List<Curve> SectionSightlines { get; set; } = new List<Curve>();
         
         // Validation Data (Computed)

@@ -28,12 +28,14 @@ namespace Owl.Grasshopper.Components.Solvers
             pManager.AddNumberParameter("AudienceOffsets", "Offsets", "X offsets for chairs per row", GH_ParamAccess.list); // 5
             pManager.AddGenericParameter("HallSetup", "Hall", "Hall Setup for plan generation", GH_ParamAccess.item);     // 6
             pManager.AddGenericParameter("DisabledSeatsSetup", "DisSeats", "Disabled Seats Configuration (Row 0)", GH_ParamAccess.item); // 7
+            pManager.AddIntegerParameter("AudienceMap", "AudMap", "Audience index map per row (List of ints)", GH_ParamAccess.list); // 8
 
             pManager[3].Optional = true;
             pManager[4].Optional = true;
             pManager[5].Optional = true;
             pManager[6].Optional = true;
             pManager[7].Optional = true;
+            pManager[8].Optional = true;
         }
 
             protected override void RegisterOutputParams(GH_Component.GH_OutputParamManager pManager)
@@ -51,6 +53,8 @@ namespace Owl.Grasshopper.Components.Solvers
             List<AudienceSetup> audiences = new List<AudienceSetup>();
             List<double> offsets = new List<double>();
             HallSetup hallSetup = null;
+            DisabledSeatsSetup disabledSeats = null;
+            List<int> audienceMap = new List<int>();
 
             if (!DA.GetData(0, ref stSetup) || stSetup == null) return;
             if (!DA.GetData(1, ref railings) || railings == null) return;
@@ -59,8 +63,8 @@ namespace Owl.Grasshopper.Components.Solvers
             DA.GetDataList(4, audiences);
             DA.GetDataList(5, offsets);
             DA.GetData(6, ref hallSetup);
-            DisabledSeatsSetup disabledSeats = null;
             DA.GetData(7, ref disabledSeats);
+            DA.GetDataList(8, audienceMap);
 
             TribuneSolver solver = new TribuneSolver(stSetup, railings);
 
@@ -70,7 +74,8 @@ namespace Owl.Grasshopper.Components.Solvers
                 audiences, 
                 offsets, 
                 hallSetup,
-                disabledSeats
+                disabledSeats,
+                audienceMap.Count > 0 ? audienceMap : null
             );
 
             DA.SetData(0, solution);
