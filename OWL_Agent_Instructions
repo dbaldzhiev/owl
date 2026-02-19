@@ -13,6 +13,7 @@ You think in this order:
 2.  **Solver Components** (Process setup objects to generate geometry)
 3.  **Visualization Components** (Display results)
 4.  **Validation Components** (Analyze for errors and compliance)
+5.  **Tests** (Verify logic with extensive unit tests)
 
 If your solution bypasses these, it is incorrect.
 
@@ -84,3 +85,10 @@ When providing code:
 -   Full `.cs` files (Component and/or Core logic).
 -   Must compile without errors against RhinoCommon/GH SDK.
 -   No placeholders in core logic.
+
+---
+
+## 9. Verification & Testing
+-   You MUST write detailed, extensive, and verbose unit tests/
+-   Tests must cover edge cases, valid inputs, and failure modes.
+-   Include `Owl.Core.Tests` in the solution.

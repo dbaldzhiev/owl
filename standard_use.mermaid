@@ -1,0 +1,77 @@
+graph TD
+    %% Styling
+    classDef setup fill:#e1f5fe,stroke:#01579b,stroke-width:2px;
+    classDef solver fill:#fff9c4,stroke:#fbc02d,stroke-width:2px;
+    classDef viz fill:#e8f5e9,stroke:#2e7d32,stroke-width:2px;
+    classDef data fill:#f3e5f5,stroke:#7b1fa2,stroke-width:1px,stroke-dasharray: 5 5,text-align:left;
+    classDef legacy fill:#ffebee,stroke:#c62828,stroke-width:2px,stroke-dasharray: 5 5;
+
+    subgraph Setup Phase
+        direction TB
+        
+        %% Consolidated Stair/Tribune Setup
+        StairTrib[Owl_StairTribuneSetup]:::setup
+        StairTrib_In(Inputs:<br/>- Rows<br/>- RowWidths<br/>- Elevations<br/>- StairInsets<br/>- TreadHeight<br/>- TreadWidth):::data
+        StairTrib_In --> StairTrib
+        
+        %% Railing Setup
+        Railing[Owl_RailingSetup]:::setup
+        Railing_In(Inputs:<br/>- RailHeight<br/>- RailWidth):::data
+        Railing_In --> Railing
+        
+        %% Audience Setup
+        Audience[Owl_AudienceSetup]:::setup
+        Audience_In(Inputs:<br/>- EyePoint<br/>- SectionFrame<br/>- ChairProfile<br/>- FrontLimit<br/>- HardBackLimit<br/>- SoftBackLimit<br/>- ChairPlan<br/>- PlanFrame<br/>- ChairWidth):::data
+        Audience_In --> Audience
+        
+        %% Hall Setup (Projector/Screen merged here)
+        Hall[Owl_HallSetup]:::setup
+        Hall_In(Inputs:<br/>- TribuneBoundary<br/>- AisleBoundaries<br/>- TunnelBoundaries<br/>- SectionFrame<br/>- ProjectorLocation<br/>- ScreenCurve<br/>- ExistingTribuneProfile):::data
+        Hall_In --> Hall
+        
+    end
+
+    %% Setup Connections
+
+    subgraph Solver Phase
+        Solver[Owl_TribuneSolver]:::solver
+    end
+
+    %% Data Flow to Solver
+    StairTrib -->|StairTribuneSetup| Solver
+    Railing -->|RailingSetup| Solver
+    Audience -->|List AudienceSetup| Solver
+    Hall -->|HallSetup| Solver
+
+    subgraph Visualization Phase
+        Draftsman[Owl_Draftsman]:::viz
+        Validator[Owl_Validator]:::viz
+    end
+
+    %% Solution Flow
+    Solution(TribuneSolution):::data
+    Solver --> Solution
+    Solution --> Draftsman
+    Solution --> Validator
+
+    %% Draftsman Inputs/Outputs
+    Draftsman_In(Inputs:<br/>- TribuneSolution<br/>- ViewMode):::data
+    Draftsman_In --> Draftsman
+    
+    Draftsman_Out(Outputs:<br/>- Tribune<br/>- Stairs<br/>- Railings<br/>- Chairs<br/>- ChairFrames<br/>- Projector Cone):::data
+    Draftsman --> Draftsman_Out
+    
+    %% Validator Outputs
+    Validator_Out(Outputs:<br/>- StairClearances<br/>- ChairClearances<br/>- CValues<br/>- Errors):::data
+    Validator --> Validator_Out
+
+    subgraph Legacy / Obsolete
+        Analysis[Owl_Analysis]:::legacy
+        Renovation[Owl_Renovation]:::legacy
+        OldProj[Owl_ProjectorSetup]:::legacy
+        OldScreen[Owl_ScreenSetup]:::legacy
+    end
+
+    %% Legacy Connections
+    Solution -.->|Needs Update| Analysis
+    Solution -.->|Needs Update| Renovation

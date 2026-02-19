@@ -17,20 +17,20 @@ namespace Owl.Grasshopper.Components.Setup
 
         protected override void RegisterInputParams(GH_Component.GH_InputParamManager pManager)
         {
-            pManager.AddPointParameter("EyeLocation", "Eye", "Location of the eye relative to the origin", GH_ParamAccess.item, new Point3d(155, 0, 97));
-            pManager.AddPointParameter("SecOrigin", "SecOrig", "Section origin of the chair-eye config", GH_ParamAccess.item, Point3d.Origin);
-            pManager.AddCurveParameter("SecChairGeo", "SecChair", "2D section curves of the chairs", GH_ParamAccess.list);
-            pManager.AddNumberParameter("SecFL", "SecFL", "Section front limit (default 45)", GH_ParamAccess.item, 45.0);
-            pManager.AddNumberParameter("SecHBL", "SecHBL", "Section hard-back limit (default 182.5)", GH_ParamAccess.item, 182.5);
-            pManager.AddNumberParameter("SecSBL", "SecSBL", "Section soft-back limit (default 200)", GH_ParamAccess.item, 200.0);
-            pManager.AddCurveParameter("PlanChairGeo", "PlanChair", "Plan view chair curves", GH_ParamAccess.list);
-            pManager.AddPointParameter("PlanChairOrigin", "PlanOrig", "Plan view chair origin", GH_ParamAccess.item, Point3d.Origin);
-            pManager.AddNumberParameter("PlanChairWidth", "PlanW", "Plan view chair width", GH_ParamAccess.item, 500.0);
+            pManager.AddPointParameter("EyePoint", "Eye", "Location of the eye relative to the origin", GH_ParamAccess.item, new Point3d(155, 0, 97));
+            pManager.AddPlaneParameter("SectionFrame", "SecFrame", "Section origin plane of the chair-eye config", GH_ParamAccess.item, Plane.WorldXY);
+            pManager.AddCurveParameter("ChairProfile", "ChairProf", "2D section curves of the chairs", GH_ParamAccess.list);
+            pManager.AddNumberParameter("FrontLimit", "FL", "Section front limit (default 45)", GH_ParamAccess.item, 45.0);
+            pManager.AddNumberParameter("HardBackLimit", "HBL", "Section hard-back limit (default 182.5)", GH_ParamAccess.item, 182.5);
+            pManager.AddNumberParameter("SoftBackLimit", "SBL", "Section soft-back limit (default 200)", GH_ParamAccess.item, 200.0);
+            pManager.AddCurveParameter("ChairPlan", "PlanProf", "Plan view chair curves", GH_ParamAccess.list);
+            pManager.AddPlaneParameter("PlanFrame", "PlanFrame", "Plan view chair origin plane", GH_ParamAccess.item, Plane.WorldXY);
+            pManager.AddNumberParameter("ChairWidth", "Width", "Plan view chair width", GH_ParamAccess.item, 500.0);
 
-            pManager[2].Optional = true;   // SecChairGeo
-            pManager[6].Optional = true;   // PlanChairGeo
-            pManager[7].Optional = true;   // PlanChairOrigin
-            pManager[8].Optional = true;   // PlanChairWidth
+            pManager[2].Optional = true;   // ChairProfile
+            pManager[6].Optional = true;   // ChairPlan
+            pManager[7].Optional = true;   // PlanFrame
+            pManager[8].Optional = true;   // ChairWidth
         }
 
         protected override void RegisterOutputParams(GH_Component.GH_OutputParamManager pManager)
@@ -41,13 +41,13 @@ namespace Owl.Grasshopper.Components.Setup
         protected override void SolveInstance(IGH_DataAccess DA)
         {
             Point3d eye = new Point3d(155, 0, 97);
-            Point3d secOrigin = Point3d.Origin;
+            Plane secOrigin = Plane.WorldXY;
             List<Curve> secChairs = new List<Curve>();
             double secFL = 45.0;
             double secHBL = 182.5;
             double secSBL = 200.0;
             List<Curve> planChairs = new List<Curve>();
-            Point3d planOrigin = Point3d.Origin;
+            Plane planOrigin = Plane.WorldXY;
             double planWidth = 500.0;
 
             DA.GetData(0, ref eye);
