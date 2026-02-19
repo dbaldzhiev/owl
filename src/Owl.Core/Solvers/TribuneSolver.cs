@@ -758,58 +758,65 @@ namespace Owl.Core.Solvers
                         if (seg == null) continue;
                         double segLen = seg.GetLength();
 
-                        // 1. Calculate how many chairs fit in this segment to center them.
-                        // We need to keep track of the setups for the sequence.
-                        var setupsForThisSeg = new List<AudienceSetup>();
-                        var typesForThisSeg = new List<int>();
-                        double currentRequiredLen = 0;
-                        int currentSeatCount = 0;
-
-                        while (true)
+                        // Divide segment into sub-segments (Before, Disabled, After) for Row 0
+                        var jobs = new List<(Curve Curve, int Type)>();
+                        if (hasManualDisabled)
                         {
-                            int seatType = rowTypeIdx;
-                            if (hasManualDisabled)
+                            double segS = currentDistAcrossRow;
+                            double segE = currentDistAcrossRow + segLen;
+
+                            double dS = Math.Max(segS, startDistD);
+                            double dE = Math.Min(segE, endDistD);
+
+                            if (dS < dE - tol)
                             {
-                                // We need a way to predict the global position. 
-                                // Let's estimate using axial width of the NEXT seat.
-                                double predictedGlobalEnd = currentDistAcrossRow + currentRequiredLen;
-                                // Wait, the "fit" loop is tricky because we don't know the exact position until we know how many chairs.
-                                // But if we assume we're packing them, we can estimate.
-                                // Actually, let's just use the logic: AxialWidth is the distance between centers.
-                                // Footprint is ActualWidth.
-                            }
+                                // Overlap exists. Split segment.
+                                if (dS > segS + tol)
+                                {
+                                    double t;
+                                    if (seg.LengthParameter(dS - segS, out t))
+                                        jobs.Add((seg.Trim(seg.Domain.Min, t), rowTypeIdx));
+                                }
 
-                            // To avoid complex lookahead, let's just simulate the placement.
-                            int nextSeatType = rowTypeIdx;
-                            if (hasManualDisabled)
+                                double tStart, tEnd;
+                                if (seg.LengthParameter(Math.Max(0, dS - segS), out tStart) && 
+                                    seg.LengthParameter(Math.Min(segLen, dE - segS), out tEnd))
+                                {
+                                    jobs.Add((seg.Trim(tStart, tEnd), 0));
+                                }
+
+                                if (dE < segE - tol)
+                                {
+                                    double t;
+                                    if (seg.LengthParameter(dE - segS, out t))
+                                        jobs.Add((seg.Trim(t, seg.Domain.Max), rowTypeIdx));
+                                }
+                            }
+                            else
                             {
-                                // Estimation: if we add a chair, where does its center fall?
-                                // If first: center = ActualWidth/2.
-                                // If subsequent: center = prevCenter + (prevAxial + currAxial)/2.
+                                jobs.Add((seg, rowTypeIdx));
                             }
+                        }
+                        else
+                        {
+                            jobs.Add((seg, rowTypeIdx));
+                        }
 
-                            // Let's simplify: Get the setup first.
-                            // We need to know the type for seatIndexInRow + currentSeatCount.
-                            // But Rowan indices are not passed here.
-                            // For now, let's use the local seat index within row.
-                        
-                            // Correct logic for manual disabled:
-                            Func<double, int> getSeatTypeAtPos = (globalPos) => {
-                                if (hasManualDisabled && globalPos >= startDistD - tol && globalPos < endDistD - tol) return 0;
-                                return rowTypeIdx;
-                            };
+                        foreach (var job in jobs)
+                        {
+                            var subSeg = job.Curve;
+                            int subType = job.Type;
+                            double subLen = subSeg.GetLength();
 
-                            // Simulation loop
+                            // Simulation loop for this sub-segment
                             double lastCenter = 0;
                             double lastAxial = 0;
                             double currentFootprintEnd = 0;
                             var tempSetups = new List<AudienceSetup>();
-                            var tempTypes = new List<int>();
 
                             while (true)
                             {
-                                int sType = getSeatTypeAtPos(currentDistAcrossRow + currentFootprintEnd); // Rough estimate
-                                AudienceSetup s = (sType == 0 && disabledSeats != null) ? disabledSeats.Setup : (sType > 0 && sType <= audiences.Count ? audiences[sType - 1] : null);
+                                AudienceSetup s = (subType == 0 && disabledSeats != null) ? disabledSeats.Setup : (subType > 0 && subType <= audiences.Count ? audiences[subType - 1] : null);
                                 if (s == null) break;
 
                                 double thisCenter;
@@ -817,44 +824,38 @@ namespace Owl.Core.Solvers
                                 else thisCenter = lastCenter + (lastAxial + s.PlanChairWidth) / 2.0;
 
                                 double thisEnd = thisCenter + s.ActualWidth / 2.0;
-                                if (thisEnd > segLen + tol) break;
+                                if (thisEnd > subLen + tol) break;
 
                                 lastCenter = thisCenter;
                                 lastAxial = s.PlanChairWidth;
                                 currentFootprintEnd = thisEnd;
                                 tempSetups.Add(s);
-                                tempTypes.Add(sType);
                             }
 
-                            // 2. Centering and Placement
-                            double slack = segLen - currentFootprintEnd;
+                            // Centering and Placement
+                            double slack = subLen - currentFootprintEnd;
                             double shift = slack / 2.0;
                             if (shift < 0) shift = 0;
 
-                            double placingCenter = shift;
+                            double placementPos = shift;
                             AudienceSetup prevS = null;
 
                             for (int k = 0; k < tempSetups.Count; k++)
                             {
                                 var aud = tempSetups[k];
-                                var sType = tempTypes[k];
-
-                                if (prevS == null) placingCenter += aud.ActualWidth / 2.0;
-                                else placingCenter += (prevS.PlanChairWidth + aud.PlanChairWidth) / 2.0;
+                                if (prevS == null) placementPos += aud.ActualWidth / 2.0;
+                                else placementPos += (prevS.PlanChairWidth + aud.PlanChairWidth) / 2.0;
 
                                 double t;
-                                if (seg.LengthParameter(placingCenter, out t))
+                                if (subSeg.LengthParameter(placementPos, out t))
                                 {
-                                    Point3d pt = seg.PointAt(t);
+                                    Point3d pt = subSeg.PointAt(t);
                                     Plane pp = new Plane(pt, forward, Vector3d.YAxis);
-                                    addChair(pp, aud, sType);
+                                    addChair(pp, aud, subType);
                                 }
-
                                 prevS = aud;
                                 seatIndexInRow++;
                             }
-
-                            break; // We did the whole segment in one nested logic
                         }
                         currentDistAcrossRow += segLen;
                     }
