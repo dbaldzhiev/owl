@@ -575,7 +575,11 @@ namespace Owl.Core.Solvers
             }
             
             Plane worldXY = Plane.WorldXY;
-            Func<Curve, List<Curve>> keepOutside = (crv) => TrimCurve(crv, mapTunnels, false, worldXY, tol); 
+            var deviations = new List<Curve>();
+            deviations.AddRange(mapTunnels);
+            deviations.AddRange(clipRegions);
+
+            Func<Curve, List<Curve>> keepOutside = (crv) => TrimCurve(crv, deviations, false, worldXY, tol); 
             Func<Curve, List<Curve>> keepInside = (crv) => TrimCurve(crv, clipRegions, true, worldXY, tol);
             Func<double, Curve> getPlanLineAtX = (x) => 
             {
